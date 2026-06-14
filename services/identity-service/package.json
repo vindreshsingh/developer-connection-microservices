@@ -12,12 +12,23 @@
   },
   "dependencies": {
     "express": "^5.2.1",
-    "ioredis": "^5.11.1",
+    "mongoose": "^9.6.3",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "validator": "^13.15.35",
+    "nodemailer": "^8.0.10",
+    "bullmq": "^5.78.1",
+    "cookie-parser": "^1.4.7",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-linkedin-oauth2": "^2.0.0",
     "@dc/auth": "workspace:*",
     "@dc/config": "workspace:*",
     "@dc/logger": "workspace:*",
     "@dc/errors": "workspace:*",
-    "@dc/events": "workspace:*",
-    "@dc/mongo": "workspace:*"
+    "@dc/mongo": "workspace:*",
+    "@dc/redis": "workspace:*",
+    "@dc/ratelimiter": "workspace:*"
   }
 }

@@ -58,6 +58,11 @@ app.get('/_gateway/health', (_req, res) =>
 // Strangler Fig: as each microservice goes live, point its prefix at the new
 // service URL here. Anything not listed falls through to the monolith below.
 const ROUTES = [
+  // M6: identity-service owns /auth (signup/login/logout/password/email) AND
+  // the OAuth sub-routes (/auth/oauth/:provider[/callback]) — one prefix covers
+  // both. profile-service owns /profile.
+  { prefix: '/auth', target: process.env.IDENTITY_URL }, // M6
+  { prefix: '/profile', target: process.env.PROFILE_URL }, // M6
   { prefix: '/notifications', target: process.env.NOTIFICATION_URL }, // M2
   { prefix: '/ai', target: process.env.AI_URL }, // M3
   { prefix: '/jobs', target: process.env.JOB_URL }, // M3

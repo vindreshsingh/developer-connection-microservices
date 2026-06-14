@@ -29,3 +29,8 @@ const isTest = process.env.NODE_ENV === 'test';
 // while routes are served from either place during the migration.
 export const swipeRateLimiter = createRateLimiter(isTest ? 1000 : 60, 5 * 60 * 1000, 'rl:swipe:');
 export const checkoutRateLimiter = createRateLimiter(isTest ? 1000 : 10, 15 * 60 * 1000, 'rl:checkout:');
+
+// Tight limiter for auth endpoints (signup/login/password reset). Default
+// window (15m) and prefix match the monolith so the shared Redis tally is
+// coherent whether the route is served by the monolith or identity-service.
+export const authRateLimiter = createRateLimiter(isTest ? 1000 : 5000, undefined, 'rl:auth:');
