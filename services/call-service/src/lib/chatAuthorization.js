@@ -1,15 +1,15 @@
 import ConnectionRequest from '../models/connectionRequest.js';
-import User from '../models/user.js';
+import { getBlockContext, getProfile } from '@dc/service-clients';
 
-// Ported verbatim from the monolith (backend/src/utils/chatAuthorization.js).
 export const canUsersChat = async (userAId, userBId) => {
   if (userAId.toString() === userBId.toString()) {
     return { allowed: false, reason: 'Cannot chat with yourself' };
   }
 
-  const [userA, userB, connection] = await Promise.all([
-    User.findById(userAId).select('blockedUsers'),
-    User.findById(userBId).select('blockedUsers'),
+  const [ctxA, ctxB, profileB, connection] = await Promise.all([
+    getBlockContext(userAId),
+    getBlockContext(userBId),
+    getProfile(userBId),
     ConnectionRequest.findOne({
       status: 'accepted',
       $or: [
@@ -19,12 +19,14 @@ export const canUsersChat = async (userAId, userBId) => {
     }),
   ]);
 
-  if (!userA || !userB) return { allowed: false, reason: 'User not found' };
+  if (!profileB) return { allowed: false, reason: 'User not found' };
   if (!connection) return { allowed: false, reason: 'You can only message accepted connections' };
 
-  const aBlockedB = userA.blockedUsers.some((id) => id.equals(userBId));
-  const bBlockedA = userB.blockedUsers.some((id) => id.equals(userAId));
-  if (aBlockedB || bBlockedA) return { allowed: false, reason: 'You cannot message this user' };
+  const aId = userAId.toString();
+  const bId = userBId.toString();
+  if (ctxA.blockedUsers.includes(bId) || ctxB.blockedUsers.includes(aId)) {
+    return { allowed: false, reason: 'You cannot message this user' };
+  }
 
   return { allowed: true };
 };

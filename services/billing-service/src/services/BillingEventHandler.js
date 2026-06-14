@@ -4,14 +4,12 @@
  * Subscription.status and User.isPremium. State updates are idempotent, and the
  * webhook route dedupes by PaymentEvent.razorpayEventId before calling handle().
  *
- * NOTE (shared-DB phase): writing User.isPremium is a cross-context write. In
- * M6 this becomes a `billing.subscription.*` event that profile/identity
- * consumes to flip its own denormalized flag.
+ * Subscription.status via profile-service internal API for User.isPremium.
  */
 
 import Subscription from '../models/subscription.js';
-import User from '../models/user.js';
 import PaymentEvent from '../models/paymentEvent.js';
+import { setPremium } from '@dc/service-clients';
 
 const toDate = (unixSeconds) => (unixSeconds ? new Date(unixSeconds * 1000) : null);
 
@@ -35,7 +33,7 @@ export const BillingEventHandler = {
           subscription.currentPeriodStart = toDate(subEntity.current_start);
           subscription.currentPeriodEnd = toDate(subEntity.current_end);
           await subscription.save();
-          await User.findByIdAndUpdate(subscription.userId, { isPremium: true });
+          await setPremium(subscription.userId, true);
           break;
 
         case 'subscription.charged':
@@ -43,7 +41,7 @@ export const BillingEventHandler = {
           if (subEntity?.current_start) subscription.currentPeriodStart = toDate(subEntity.current_start);
           if (subEntity?.current_end) subscription.currentPeriodEnd = toDate(subEntity.current_end);
           await subscription.save();
-          await User.findByIdAndUpdate(subscription.userId, { isPremium: true });
+          await setPremium(subscription.userId, true);
           break;
 
         case 'payment.failed':
@@ -54,14 +52,14 @@ export const BillingEventHandler = {
         case 'subscription.cancelled':
           subscription.status = 'cancelled';
           await subscription.save();
-          await User.findByIdAndUpdate(subscription.userId, { isPremium: false });
+          await setPremium(subscription.userId, false);
           break;
 
         case 'subscription.completed':
         case 'subscription.expired':
           subscription.status = 'expired';
           await subscription.save();
-          await User.findByIdAndUpdate(subscription.userId, { isPremium: false });
+          await setPremium(subscription.userId, false);
           break;
 
         default:

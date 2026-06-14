@@ -1,47 +1,33 @@
 /**
- * RecommendationService — ported from the monolith
- * (backend/src/services/RecommendationService.js). Builds the candidate
- * shortlist, asks the LLM for reasons, persists the Mongo cache, and warms the
- * Redis tier. Runs inline (Redis off) or via the worker (Redis on).
+ * RecommendationService — builds AI match shortlist via profile + connection APIs.
  */
 
-import User from '../models/user.js';
-import ConnectionRequest from '../models/connectionRequest.js';
 import RecommendationCache from '../models/recommendationCache.js';
 import AIUsageLog from '../models/aiUsageLog.js';
 import { AIService } from './AIService.js';
 import * as cache from '@dc/cache';
+import { getFeedExclusions, searchProfiles, getProfilesBatch } from '@dc/service-clients';
 
-export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-export const DISMISS_EXCLUSION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const DISMISS_EXCLUSION_MS = 14 * 24 * 60 * 60 * 1000;
 export const MAX_CANDIDATES = 15;
 
 export const RECOMMENDATION_FIELDS =
-  'firstName lastName photoUrl bio skills techStack githubUrl linkedinUrl';
+  'firstName lastName photoUrl bio skills techStack githubUrl linkedinUrl experience';
 
 export const recsCacheKey = (userId) => `ai:recs:${userId}`;
 
-export const buildRecommendationsResponse = (cacheDoc) =>
+export const buildRecommendationsResponse = (cacheDoc, profileMap) =>
   (cacheDoc?.recommendations || [])
     .filter((r) => r.userId)
-    .map((r) => ({ user: r.userId, reason: r.reason }));
+    .map((r) => ({
+      user: profileMap.get(String(r.userId)) || r.userId,
+      reason: r.reason,
+    }));
 
 export const buildShortlist = async (me) => {
-  const loggedInUserId = me._id;
-
-  const interactions = await ConnectionRequest.find({
-    $or: [{ fromUserId: loggedInUserId }, { toUserId: loggedInUserId }],
-  }).select('fromUserId toUserId');
-
-  const excludedIds = new Set([loggedInUserId.toString()]);
-  for (const r of interactions) {
-    excludedIds.add(r.fromUserId.toString());
-    excludedIds.add(r.toUserId.toString());
-  }
-
-  for (const id of me.blockedUsers) excludedIds.add(id.toString());
-  const blockedByOthers = await User.find({ blockedUsers: loggedInUserId }).select('_id');
-  for (const u of blockedByOthers) excludedIds.add(u._id.toString());
+  const loggedInUserId = me._id.toString();
+  const excludedIds = new Set(await getFeedExclusions(loggedInUserId));
 
   const cacheDoc = await RecommendationCache.findOne({ userId: loggedInUserId });
   const dismissCutoff = Date.now() - DISMISS_EXCLUSION_MS;
@@ -49,9 +35,11 @@ export const buildShortlist = async (me) => {
     if (d.dismissedAt.getTime() > dismissCutoff) excludedIds.add(d.userId.toString());
   }
 
-  const candidates = await User.find({ _id: { $nin: [...excludedIds] } }).select(
-    `${RECOMMENDATION_FIELDS} experience`,
-  );
+  const candidates = await searchProfiles({
+    excludeIds: [...excludedIds],
+    fields: RECOMMENDATION_FIELDS,
+    limit: 200,
+  });
 
   const mySkills = new Set((me.skills || []).map((s) => s.toLowerCase()));
   const myTech = new Set((me.techStack || []).map((s) => s.toLowerCase()));
@@ -86,9 +74,12 @@ export const generateAndCacheRecommendations = async (user) => {
     { userId },
     { recommendations, expiresAt: new Date(Date.now() + RECOMMENDATION_CACHE_TTL_MS) },
     { upsert: true, new: true },
-  ).populate({ path: 'recommendations.userId', select: RECOMMENDATION_FIELDS });
+  );
 
-  const data = buildRecommendationsResponse(cacheDoc);
+  const profiles = await getProfilesBatch(recommendations.map((r) => String(r.userId)));
+  const profileMap = new Map(profiles.map((p) => [String(p._id), p]));
+
+  const data = buildRecommendationsResponse(cacheDoc, profileMap);
   await cache.set(recsCacheKey(userId), data, Math.floor(RECOMMENDATION_CACHE_TTL_MS / 1000));
   return data;
 };

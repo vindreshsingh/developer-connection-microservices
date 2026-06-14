@@ -19,6 +19,7 @@
     "@dc/config": "workspace:*",
     "@dc/errors": "workspace:*",
     "@dc/logger": "workspace:*",
-    "@dc/mongo": "workspace:*"
+    "@dc/mongo": "workspace:*",
+    "@dc/service-clients": "workspace:*"
   }
 }

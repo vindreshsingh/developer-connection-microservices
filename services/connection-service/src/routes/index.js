@@ -11,12 +11,30 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import userAuth from '../middlewares/auth.js';
 import { swipeRateLimiter } from '@dc/ratelimiter';
+import { getProfile, getProfilesBatch } from '@dc/service-clients';
 import ConnectionRequest from '../models/connectionRequest.js';
 import Report from '../models/report.js';
 import User from '../models/user.js';
 import Plan from '../models/plan.js';
 
 const router = Router();
+
+const profileMapFromBatch = (profiles) => new Map(profiles.map((p) => [String(p._id), p]));
+
+const attachProfiles = (requests, idField, profileMap) =>
+  requests.map((r) => ({
+    ...r.toObject(),
+    [idField]: profileMap.get(String(r[idField])) || null,
+  }));
+
+async function getConnectionUser(userId) {
+  let connUser = await User.findById(userId);
+  if (!connUser) connUser = await User.create({ _id: userId, blockedUsers: [] });
+  return connUser;
+}
+
+const isBlocked = (blockedUsers, userId) =>
+  blockedUsers.some((id) => String(id) === String(userId));
 
 // POST /request/send/:status/:toUserId
 router.post('/send/:status/:toUserId', userAuth, swipeRateLimiter, async (req, res) => {
@@ -31,7 +49,7 @@ router.post('/send/:status/:toUserId', userAuth, swipeRateLimiter, async (req, r
     if (!mongoose.Types.ObjectId.isValid(toUserId))
       return res.status(400).json({ error: 'Invalid user id' });
 
-    const toUser = await User.findById(toUserId);
+    const toUser = await getProfile(toUserId);
     if (!toUser) return res.status(404).json({ error: 'User not found' });
 
     const existingRequest = await ConnectionRequest.findOne({
@@ -105,9 +123,11 @@ router.get('/pending', userAuth, async (req, res) => {
     const pendingRequests = await ConnectionRequest.find({
       toUserId: req.user._id,
       status: 'interested',
-    }).populate('fromUserId', 'firstName lastName photoUrl bio skills');
+    });
+    const profiles = await getProfilesBatch(pendingRequests.map((r) => String(r.fromUserId)));
+    const data = attachProfiles(pendingRequests, 'fromUserId', profileMapFromBatch(profiles));
 
-    res.status(200).json({ count: pendingRequests.length, data: pendingRequests });
+    res.status(200).json({ count: data.length, data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -118,9 +138,11 @@ router.get('/sent', userAuth, async (req, res) => {
   try {
     const sentRequests = await ConnectionRequest.find({
       fromUserId: req.user._id,
-    }).populate('toUserId', 'firstName lastName photoUrl bio skills');
+    });
+    const profiles = await getProfilesBatch(sentRequests.map((r) => String(r.toUserId)));
+    const data = attachProfiles(sentRequests, 'toUserId', profileMapFromBatch(profiles));
 
-    res.status(200).json({ count: sentRequests.length, data: sentRequests });
+    res.status(200).json({ count: data.length, data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -136,13 +158,22 @@ router.get('/connections', userAuth, async (req, res) => {
         { fromUserId: loggedInUser, status: 'accepted' },
         { toUserId: loggedInUser, status: 'accepted' },
       ],
-    })
-      .populate('fromUserId', 'firstName lastName photoUrl bio skills')
-      .populate('toUserId', 'firstName lastName photoUrl bio skills');
+    });
 
-    const data = connections.map((conn) =>
-      conn.fromUserId._id.equals(loggedInUser) ? conn.toUserId : conn.fromUserId,
-    );
+    const profileIds = [
+      ...new Set(
+        connections.flatMap((c) => [String(c.fromUserId), String(c.toUserId)]),
+      ),
+    ];
+    const profiles = await getProfilesBatch(profileIds);
+    const profileMap = profileMapFromBatch(profiles);
+
+    const data = connections
+      .map((conn) => {
+        const otherId = conn.fromUserId.equals(loggedInUser) ? conn.toUserId : conn.fromUserId;
+        return profileMap.get(String(otherId)) || null;
+      })
+      .filter(Boolean);
 
     res.status(200).json({ count: data.length, data });
   } catch (err) {
@@ -153,8 +184,8 @@ router.get('/connections', userAuth, async (req, res) => {
 // GET /request/blocked
 router.get('/blocked', userAuth, async (req, res) => {
   try {
-    await req.user.populate('blockedUsers', 'firstName lastName photoUrl bio skills');
-    const data = req.user.blockedUsers.filter(Boolean);
+    const blockedIds = req.user.blockedUsers.map(String);
+    const data = (await getProfilesBatch(blockedIds)).filter(Boolean);
     res.status(200).json({ count: data.length, data });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -172,12 +203,13 @@ router.post('/block/:userId', userAuth, async (req, res) => {
     if (loggedInUser._id.equals(userId))
       return res.status(400).json({ error: 'Cannot block yourself' });
 
-    const targetUser = await User.findById(userId);
+    const targetUser = await getProfile(userId);
     if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
-    if (!loggedInUser.blockedUsers.some((id) => id.equals(userId))) {
-      loggedInUser.blockedUsers.push(userId);
-      await loggedInUser.save();
+    const connUser = await getConnectionUser(loggedInUser._id);
+    if (!isBlocked(connUser.blockedUsers, userId)) {
+      connUser.blockedUsers.push(userId);
+      await connUser.save();
     }
 
     await ConnectionRequest.deleteMany({
@@ -202,8 +234,9 @@ router.delete('/block/:userId', userAuth, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId))
       return res.status(400).json({ error: 'Invalid user id' });
 
-    loggedInUser.blockedUsers = loggedInUser.blockedUsers.filter((id) => !id.equals(userId));
-    await loggedInUser.save();
+    const connUser = await getConnectionUser(loggedInUser._id);
+    connUser.blockedUsers = connUser.blockedUsers.filter((id) => String(id) !== String(userId));
+    await connUser.save();
 
     res.status(200).json({ message: 'User unblocked' });
   } catch (err) {
@@ -223,7 +256,7 @@ router.post('/report/:userId', userAuth, async (req, res) => {
     if (!reason || !reason.trim())
       return res.status(400).json({ error: 'A reason is required to file a report' });
 
-    const targetUser = await User.findById(userId);
+    const targetUser = await getProfile(userId);
     if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
     const report = new Report({ reporterId: loggedInUser, reportedUserId: userId, reason: reason.trim() });

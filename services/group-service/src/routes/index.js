@@ -14,7 +14,7 @@ import mongoose from 'mongoose';
 import userAuth from '../middlewares/auth.js';
 import Group from '../models/group.js';
 import GroupMessage from '../models/groupMessage.js';
-import User from '../models/user.js';
+import { getProfile } from '@dc/service-clients';
 
 const router = Router();
 const PAGE_SIZE = 20;
@@ -180,7 +180,7 @@ router.post('/:groupId/members/:userId', userAuth, requireMember, requireAdmin, 
     if (group.memberCount >= group.maxMembers)
       return res.status(400).json({ error: `This group is full (max ${group.maxMembers} members).` });
 
-    const target = await User.findById(userId).select('_id');
+    const target = await getProfile(userId);
     if (!target) return res.status(404).json({ error: 'User not found.' });
 
     group.members.push({ userId: target._id, role: 'member', joinedAt: new Date() });
