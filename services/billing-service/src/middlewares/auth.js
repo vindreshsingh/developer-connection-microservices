@@ -1,6 +1,3 @@
-import { createUserAuth } from '@dc/auth';
-import User from '../models/user.js';
+import { createRemoteUserAuth } from '@dc/auth';
 
-const userAuth = createUserAuth(User);
-
-export default userAuth;
+export default createRemoteUserAuth();

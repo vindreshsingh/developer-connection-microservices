@@ -1,6 +1,6 @@
 import { config } from '@dc/config';
+import { validateSession } from '@dc/service-clients';
 import Profile from '../models/profile.js';
-import { validateSession } from '../lib/identityClient.js';
 
 const profileAuth = async (req, res, next) => {
   const userId = req.headers[config.internalAuthHeader];

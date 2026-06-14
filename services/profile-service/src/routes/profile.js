@@ -14,11 +14,11 @@ import { LinkedInEnrichmentService } from '../lib/linkedinEnrichment.js';
 import {
   deactivateAccount,
   disconnectOAuth,
+  getFeedExclusions,
   getLinkedAccounts,
   getOAuthToken,
   updatePassword,
-} from '../lib/identityClient.js';
-import { getFeedExclusions } from '../lib/connectionClient.js';
+} from '@dc/service-clients';
 
 const router = Router();
 

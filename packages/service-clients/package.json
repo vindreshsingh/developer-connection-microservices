@@ -1,5 +1,5 @@
 {
-  "name": "@dc/auth",
+  "name": "@dc/service-clients",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.js",
@@ -9,8 +9,6 @@
     "lint": "echo \"no lint\""
   },
   "dependencies": {
-    "jsonwebtoken": "^9.0.3",
-    "@dc/config": "workspace:*",
-    "@dc/service-clients": "workspace:*"
+    "@dc/config": "workspace:*"
   }
 }

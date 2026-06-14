@@ -8,6 +8,9 @@ x-base-env: &base-env
   FRONTEND_URL: http://localhost:5173
   NODE_ENV: development
   INTERNAL_SERVICE_TOKEN: dev-internal-token
+  IDENTITY_URL: http://identity-service:4001
+  PROFILE_URL: http://profile-service:4005
+  CONNECTION_URL: http://connection-service:4003
 
 x-identity-env: &identity-env
   <<: *base-env

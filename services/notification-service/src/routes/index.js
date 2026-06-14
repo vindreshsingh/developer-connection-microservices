@@ -1,15 +1,25 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { requireUser } from '@dc/auth';
+import { getProfilesBatch } from '@dc/service-clients';
 import Notification from '../models/notification.js';
-import '../models/user.js'; // register User model so actorId populate works
 
 const router = Router();
 const PAGE_SIZE = 20;
 
 const validObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-// GET /notifications — paginated, newest-first.
+const attachActors = async (notifications) => {
+  const actorIds = [...new Set(notifications.map((n) => n.actorId && String(n.actorId)).filter(Boolean))];
+  const profiles = await getProfilesBatch(actorIds);
+  const byId = new Map(profiles.map((p) => [String(p._id), p]));
+  return notifications.map((n) => {
+    const doc = n.toObject ? n.toObject() : n;
+    if (doc.actorId) doc.actorId = byId.get(String(doc.actorId)) || doc.actorId;
+    return doc;
+  });
+};
+
 router.get('/', requireUser, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -19,11 +29,12 @@ router.get('/', requireUser, async (req, res) => {
     const notifications = await Notification.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * PAGE_SIZE)
-      .limit(PAGE_SIZE)
-      .populate('actorId', 'firstName lastName photoUrl');
+      .limit(PAGE_SIZE);
+
+    const data = await attachActors(notifications);
 
     res.status(200).json({
-      data: notifications,
+      data,
       pagination: {
         page,
         pageSize: PAGE_SIZE,
@@ -37,7 +48,6 @@ router.get('/', requireUser, async (req, res) => {
   }
 });
 
-// GET /notifications/unread-count
 router.get('/unread-count', requireUser, async (req, res) => {
   try {
     const count = await Notification.countDocuments({ recipientId: req.userId, read: false });
@@ -47,7 +57,6 @@ router.get('/unread-count', requireUser, async (req, res) => {
   }
 });
 
-// PATCH /notifications/read-all — registered before /:notificationId/read.
 router.patch('/read-all', requireUser, async (req, res) => {
   try {
     await Notification.updateMany({ recipientId: req.userId, read: false }, { read: true });
@@ -57,7 +66,6 @@ router.patch('/read-all', requireUser, async (req, res) => {
   }
 });
 
-// PATCH /notifications/:notificationId/read
 router.patch('/:notificationId/read', requireUser, async (req, res) => {
   try {
     const { notificationId } = req.params;

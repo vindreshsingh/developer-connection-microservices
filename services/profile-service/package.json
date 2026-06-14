@@ -20,6 +20,7 @@
     "@dc/logger": "workspace:*",
     "@dc/errors": "workspace:*",
     "@dc/mongo": "workspace:*",
-    "@dc/cloudinary": "workspace:*"
+    "@dc/cloudinary": "workspace:*",
+    "@dc/service-clients": "workspace:*"
   }
 }

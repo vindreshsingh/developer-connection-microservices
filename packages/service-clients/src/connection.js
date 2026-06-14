@@ -8,3 +8,11 @@ export async function getFeedExclusions(userId) {
   const data = await res.json();
   return data.excludedIds || [];
 }
+
+export async function getBlockContext(userId) {
+  const res = await fetch(`${config.connectionUrl}/internal/block-context/${userId}`, {
+    headers: { 'x-internal-service-token': config.internalServiceToken },
+  });
+  if (!res.ok) throw new Error(`block context failed: ${await res.text()}`);
+  return res.json();
+}

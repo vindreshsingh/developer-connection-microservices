@@ -37,4 +37,21 @@ router.get('/feed-exclusions/:userId', async (req, res) => {
   res.json({ excludedIds: [...excludedIds] });
 });
 
+router.get('/block-context/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const uid = new mongoose.Types.ObjectId(userId);
+  let user = await User.findById(uid).select('blockedUsers');
+  if (!user) user = { blockedUsers: [] };
+
+  const blockedBy = await User.find({ blockedUsers: uid }).select('_id');
+  res.json({
+    blockedUsers: user.blockedUsers.map((id) => id.toString()),
+    blockedBy: blockedBy.map((u) => u._id.toString()),
+  });
+});
+
 export default router;

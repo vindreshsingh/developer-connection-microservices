@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { config } from '@dc/config';
+import { validateSession, getProfile } from '@dc/service-clients';
 
 // Verify a JWT (used by the gateway at the edge).
 export const verifyToken = (token) => jwt.verify(token, config.jwtSecret);
@@ -56,4 +57,32 @@ export const requireServiceToken = (req, res, next) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   next();
+};
+
+/**
+ * Auth middleware for services that do NOT own profile data. Validates the
+ * session against identity-service and loads the profile projection from
+ * profile-service (database-per-service — no cross-DB User reads).
+ */
+export const createRemoteUserAuth = () => async (req, res, next) => {
+  const userId = req.headers[config.internalAuthHeader];
+  if (!userId) return res.status(401).json({ error: 'Please login to continue' });
+
+  try {
+    const fwdTokenVersion = req.headers[config.internalTokenVersionHeader];
+    const valid = await validateSession(
+      userId,
+      fwdTokenVersion !== undefined ? Number(fwdTokenVersion) : undefined,
+    );
+    if (!valid) return res.status(401).json({ error: 'Session expired. Please login again' });
+
+    const profile = await getProfile(userId);
+    if (!profile) return res.status(401).json({ error: 'User not found' });
+
+    req.user = { ...profile, _id: profile._id || userId };
+    req.userId = String(userId);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
 };

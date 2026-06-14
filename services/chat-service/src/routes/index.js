@@ -15,7 +15,7 @@ import mongoose from 'mongoose';
 import userAuth from '../middlewares/auth.js';
 import Conversation from '../models/conversation.js';
 import Message from '../models/message.js';
-import User from '../models/user.js';
+import { getBlockContext, getProfile, getProfilesBatch } from '@dc/service-clients';
 import { canUsersChat } from '../lib/chatAuthorization.js';
 
 const router = Router();
@@ -28,29 +28,38 @@ router.get('/conversations', userAuth, async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
 
-    const myBlockedIds = new Set(req.user.blockedUsers.map((id) => id.toString()));
+    const ctx = await getBlockContext(loggedInUserId);
+    const myBlockedIds = new Set([...ctx.blockedUsers, ...ctx.blockedBy]);
 
-    const usersWhoBlockedMe = await User.find({ blockedUsers: loggedInUserId }).select('_id');
-    usersWhoBlockedMe.forEach((u) => myBlockedIds.add(u._id.toString()));
+    const conversations = await Conversation.find({ participants: loggedInUserId }).sort({
+      lastMessageAt: -1,
+      updatedAt: -1,
+    });
 
-    const conversations = await Conversation.find({ participants: loggedInUserId })
-      .sort({ lastMessageAt: -1, updatedAt: -1 })
-      .populate('participants', 'firstName lastName photoUrl');
+    const participantIds = new Set();
+    for (const c of conversations) {
+      for (const p of c.participants) {
+        if (String(p) !== String(loggedInUserId)) participantIds.add(String(p));
+      }
+    }
+    const profiles = await getProfilesBatch([...participantIds]);
+    const profileMap = new Map(profiles.map((p) => [String(p._id), p]));
 
     const data = conversations
       .map((conversation) => {
-        const otherUser = conversation.participants.find(
-          (participant) => !participant._id.equals(loggedInUserId),
-        );
+        const otherId = conversation.participants.find((p) => String(p) !== String(loggedInUserId));
+        const otherUser = profileMap.get(String(otherId));
+        if (!otherUser) return null;
         return {
           _id: conversation._id,
           otherUser,
           lastMessageAt: conversation.lastMessageAt,
-          lastReadAt: conversation.lastReadBy?.get(loggedInUserId.toString()) || null,
-          otherUserLastReadAt: conversation.lastReadBy?.get(otherUser._id.toString()) || null,
+          lastReadAt: conversation.lastReadBy?.get(String(loggedInUserId)) || null,
+          otherUserLastReadAt: conversation.lastReadBy?.get(String(otherId)) || null,
           updatedAt: conversation.updatedAt,
         };
       })
+      .filter(Boolean)
       .filter((item) => !myBlockedIds.has(item.otherUser._id.toString()));
 
     res.status(200).json({ count: data.length, data });
@@ -68,7 +77,7 @@ router.post('/conversations/:userId', userAuth, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId))
       return res.status(400).json({ error: 'Invalid user id' });
 
-    const targetUser = await User.findById(userId);
+    const targetUser = await getProfile(userId);
     if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
     const authorization = await canUsersChat(loggedInUserId, userId);
@@ -81,9 +90,14 @@ router.post('/conversations/:userId', userAuth, async (req, res) => {
       conversation = new Conversation({ participants });
       await conversation.save();
     }
-    await conversation.populate('participants', 'firstName lastName photoUrl');
 
-    res.status(200).json({ data: conversation });
+    const profiles = await getProfilesBatch(conversation.participants.map(String));
+    const populated = {
+      ...conversation.toObject(),
+      participants: profiles,
+    };
+
+    res.status(200).json({ data: populated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

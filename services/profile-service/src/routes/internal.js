@@ -26,6 +26,51 @@ router.post('/profiles', async (req, res) => {
   }
 });
 
+router.get('/profiles/search', async (req, res) => {
+  try {
+    const exclude = (req.query.exclude || '')
+      .split(',')
+      .filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const select = req.query.fields || undefined;
+
+    let query = Profile.find({ _id: { $nin: exclude } });
+    if (select) query = query.select(select);
+    const profiles = await query.limit(limit);
+    res.json(profiles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/profiles/batch', async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds)) return res.status(400).json({ error: 'userIds array required' });
+
+    const ids = userIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const profiles = await Profile.find({ _id: { $in: ids } }).select(
+      'firstName lastName photoUrl bio skills',
+    );
+    res.json({ profiles });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/profiles/:userId/premium', async (req, res) => {
+  const { isPremium } = req.body;
+  if (typeof isPremium !== 'boolean') return res.status(400).json({ error: 'isPremium boolean required' });
+
+  const profile = await Profile.findByIdAndUpdate(
+    req.params.userId,
+    { isPremium },
+    { new: true },
+  );
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  res.json({ ok: true, isPremium: profile.isPremium });
+});
+
 router.get('/profiles/:userId', async (req, res) => {
   const profile = await Profile.findById(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
