@@ -1,7 +1,7 @@
 # Local dev stack: infra + all microservices + the gateway.
 #
 # Database-per-service — fresh DBs, no monolith data migration required.
-# Gateway routes extracted prefixes to services; the rest falls through to MONOLITH_URL.
+# Gateway routes each prefix to its owning service; unmatched paths return 404.
 x-base-env: &base-env
   JWT_SECRET: change-me
   CSRF_SECRET: change-me-csrf
@@ -32,7 +32,6 @@ x-profile-env: &profile-env
 x-gateway-env: &gateway-env
   <<: *base-env
   PORT: "4000"
-  MONOLITH_URL: http://host.docker.internal:3008
   IDENTITY_URL: http://identity-service:4001
   PROFILE_URL: http://profile-service:4005
   NOTIFICATION_URL: http://notification-service:4010
