@@ -14,15 +14,14 @@ const log = createLogger('api-gateway');
 initSentry('api-gateway');
 const app = express();
 const PORT = process.env.PORT ?? 4000;
-const MONOLITH_URL = process.env.MONOLITH_URL ?? 'http://localhost:3008';
 
 const matchPrefix = (pathname, prefix) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 // Security headers at the edge — applied to every response before proxying,
-// so all upstreams (microservices and the monolith fallback) are covered from
-// one place. crossOriginResourcePolicy is relaxed because the SPA on a
-// different origin must be able to consume gateway responses.
+// so all proxied microservices are covered from one place.
+// crossOriginResourcePolicy is relaxed because the SPA on a different origin
+// must be able to consume gateway responses.
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(cookieParser());
@@ -35,10 +34,6 @@ app.use(cookieParser());
 // 2) Verify the JWT cookie once here. On success, forward a trusted internal
 //    header carrying the user id. Downstream services read it via @dc/auth's
 //    requireUser instead of re-validating the cookie.
-//
-// During M1 the monolith still reads its OWN `token` cookie (forwarded
-// unchanged by the proxy) and simply ignores the extra header — so wrapping it
-// is a zero-behavior-change, reversible step.
 app.use((req, _res, next) => {
   delete req.headers[config.internalAuthHeader];
   delete req.headers[config.internalTokenVersionHeader];
@@ -56,22 +51,22 @@ app.use((req, _res, next) => {
       }
     }
   } catch {
-    // Anonymous/invalid token — downstream (or the monolith) decides whether
-    // auth is required for this route.
+    // Anonymous/invalid token — the downstream service decides whether auth is
+    // required for this route.
   }
   next();
 });
 
 // The gateway's own liveness check (distinct from upstreams' /health).
 app.get('/_gateway/health', (_req, res) =>
-  res.json({ status: 'ok', service: 'api-gateway', monolith: MONOLITH_URL }),
+  res.json({ status: 'ok', service: 'api-gateway' }),
 );
 
 // --- CSRF protection ---------------------------------------------------------
 // Establish the CSRF session cookie for every request, then expose a token
 // endpoint the SPA calls before issuing mutations. doubleCsrfProtection rejects
 // any non-ignored method (POST/PUT/PATCH/DELETE) whose `x-csrf-token` header
-// doesn't match — covering all proxied upstreams, including the monolith.
+// doesn't match — covering all proxied microservices.
 app.use(ensureCsrfSession);
 
 app.get('/csrf-token', (req, res) => {
@@ -81,8 +76,8 @@ app.get('/csrf-token', (req, res) => {
 app.use(doubleCsrfProtection);
 
 // --- Service routing table ---------------------------------------------------
-// Strangler Fig: as each microservice goes live, point its prefix at the new
-// service URL here. Anything not listed falls through to the monolith below.
+// Each prefix is proxied to its owning microservice. Anything not listed here
+// returns 404 (the monolith fallthrough was removed once all domains migrated).
 const ROUTES = [
   // M6: identity-service owns /auth (signup/login/logout/password/email) AND
   // the OAuth sub-routes (/auth/oauth/:provider[/callback]) — one prefix covers
@@ -129,22 +124,12 @@ for (const { prefix, target } of ROUTES) {
   log.info(`Routing ${prefix} -> ${target}${isSocketIo ? ' (ws)' : ''}`);
 }
 
-// Default: proxy everything else to the monolith.
-//
-// ws is intentionally DISABLED here as of M5: the only WebSocket traffic is
-// Socket.IO, which now routes to the realtime-gateway via the /socket.io entry
-// above. A catch-all with ws:true has no pathFilter, so it would also grab
-// /socket.io upgrades and race the realtime-gateway proxy. Disabling it keeps
-// the upgrade routing deterministic.
-app.use(
-  '/',
-  createProxyMiddleware({
-    target: MONOLITH_URL,
-    changeOrigin: true,
-    ws: false,
-    on: { error: onProxyError },
-  }),
-);
+// No match: every domain has been migrated to a microservice, so there is no
+// monolith fallthrough anymore. Anything not handled by a route above is a
+// genuine 404.
+app.use((_req, res) => {
+  res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+});
 
 // Error handler — must be last. Turns doubleCsrfProtection's rejection (and any
 // other thrown error) into a JSON response instead of Express's HTML default.
@@ -179,4 +164,4 @@ server.on('upgrade', (req, socket, head) => {
   socket.destroy();
 });
 
-server.listen(PORT, () => log.info(`api-gateway listening on :${PORT} -> monolith ${MONOLITH_URL}`));
+server.listen(PORT, () => log.info(`api-gateway listening on :${PORT}`));
