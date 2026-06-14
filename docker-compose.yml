@@ -8,6 +8,8 @@ x-base-env: &base-env
   FRONTEND_URL: http://localhost:5173
   NODE_ENV: development
   INTERNAL_SERVICE_TOKEN: dev-internal-token
+  # Optional Sentry DSN, read from the host env; empty = no-op.
+  SENTRY_DSN: ${SENTRY_DSN:-}
   IDENTITY_URL: http://identity-service:4001
   PROFILE_URL: http://profile-service:4005
   CONNECTION_URL: http://connection-service:4003

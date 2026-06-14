@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "express": "^5.2.1",
+    "helmet": "^8.2.0",
     "http-proxy-middleware": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "@dc/auth": "workspace:*",
     "@dc/config": "workspace:*",
-    "@dc/logger": "workspace:*"
+    "@dc/logger": "workspace:*",
+    "@dc/observability": "workspace:*"
   }
 }

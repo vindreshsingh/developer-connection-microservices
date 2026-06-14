@@ -4,11 +4,13 @@ import cookieParser from 'cookie-parser';
 import { connectMongo } from '@dc/mongo';
 import { config } from '@dc/config';
 import { createLogger } from '@dc/logger';
+import { initSentry } from '@dc/observability';
 import { errorHandler } from '@dc/errors';
 import passport, { configurePassport } from './middlewares/passport.js';
 import routes from './routes/index.js';
 
 const log = createLogger('identity-service');
+initSentry('identity-service');
 const app = express();
 const PORT = process.env.PORT ?? 4001;
 const MONGO_URI = process.env.MONGO_URI ?? config.mongoUri;

@@ -26,6 +26,7 @@
     "@dc/logger": "workspace:*",
     "@dc/mongo": "workspace:*",
     "@dc/redis": "workspace:*",
-    "@dc/service-clients": "workspace:*"
+    "@dc/service-clients": "workspace:*",
+    "@dc/observability": "workspace:*"
   }
 }

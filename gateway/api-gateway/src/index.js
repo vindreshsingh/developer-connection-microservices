@@ -1,13 +1,16 @@
 import http from 'node:http';
 import express from 'express';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { verifyToken } from '@dc/auth';
 import { config } from '@dc/config';
 import { createLogger } from '@dc/logger';
+import { initSentry, captureException } from '@dc/observability';
 
 const log = createLogger('api-gateway');
+initSentry('api-gateway');
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 const MONOLITH_URL = process.env.MONOLITH_URL ?? 'http://localhost:3008';
@@ -15,6 +18,11 @@ const MONOLITH_URL = process.env.MONOLITH_URL ?? 'http://localhost:3008';
 const matchPrefix = (pathname, prefix) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
 
+// Security headers at the edge — applied to every response before proxying,
+// so all upstreams (microservices and the monolith fallback) are covered from
+// one place. crossOriginResourcePolicy is relaxed because the SPA on a
+// different origin must be able to consume gateway responses.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(cookieParser());
 
@@ -84,6 +92,7 @@ const ROUTES = [
 
 const onProxyError = (err, _req, res) => {
   log.error({ err: err.message }, 'upstream proxy error');
+  captureException(err);
   if (!res.headersSent) {
     res.status(502).json({ error: { code: 'BAD_GATEWAY', message: 'Upstream unavailable' } });
   }

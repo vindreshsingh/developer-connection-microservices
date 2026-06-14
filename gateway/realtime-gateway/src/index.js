@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { config } from '@dc/config';
 import { createLogger } from '@dc/logger';
+import { initSentry } from '@dc/observability';
 import { createRedisClient, isRedisEnabled } from '@dc/redis';
 
 import { connectDatabases } from './lib/db.js';
@@ -14,6 +15,7 @@ import { registerCallHandlers } from './sockets/callHandlers.js';
 import { registerGroupCallHandlers } from './sockets/groupCallHandlers.js';
 
 const log = createLogger('realtime-gateway');
+initSentry('realtime-gateway');
 const PORT = process.env.PORT ?? 4020;
 
 const httpServer = http.createServer((req, res) => {

@@ -10,10 +10,12 @@ import { connectMongo } from '@dc/mongo';
 import { config } from '@dc/config';
 import { isRedisEnabled, createRedisClient } from '@dc/redis';
 import { createLogger } from '@dc/logger';
+import { initSentry } from '@dc/observability';
 import { QUEUE_NAMES } from './queues/names.js';
 import { handlers } from './jobs/handlers.js';
 
 const log = createLogger('ai-service:worker');
+initSentry('ai-service:worker');
 
 if (!isRedisEnabled) {
   log.error('Worker requires REDIS_URL — nothing to do without a queue. Exiting.');
