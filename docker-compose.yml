@@ -60,7 +60,9 @@ services:
       - redis-data:/data
 
   api-gateway:
-    build: ./gateway/api-gateway
+    build:
+      context: .
+      dockerfile: gateway/api-gateway/Dockerfile
     environment: *gateway-env
     ports:
       - "4000:4000"
@@ -70,7 +72,9 @@ services:
       - profile-service
 
   identity-service:
-    build: ./services/identity-service
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
     environment:
       <<: *identity-env
       PORT: "4001"
@@ -79,10 +83,11 @@ services:
     depends_on:
       - mongo
       - redis
-      - profile-service
 
   identity-worker:
-    build: ./services/identity-service
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
     command: ["pnpm", "worker"]
     environment: *identity-env
     depends_on:
@@ -90,7 +95,9 @@ services:
       - identity-service
 
   profile-service:
-    build: ./services/profile-service
+    build:
+      context: .
+      dockerfile: services/profile-service/Dockerfile
     environment:
       <<: *profile-env
       PORT: "4005"
@@ -99,11 +106,12 @@ services:
     depends_on:
       - mongo
       - redis
-      - identity-service
       - connection-service
 
   connection-service:
-    build: ./services/connection-service
+    build:
+      context: .
+      dockerfile: services/connection-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/connection
@@ -115,7 +123,9 @@ services:
       - redis
 
   chat-service:
-    build: ./services/chat-service
+    build:
+      context: .
+      dockerfile: services/chat-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/chat
@@ -127,7 +137,9 @@ services:
       - redis
 
   group-service:
-    build: ./services/group-service
+    build:
+      context: .
+      dockerfile: services/group-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/group
@@ -139,7 +151,9 @@ services:
       - redis
 
   call-service:
-    build: ./services/call-service
+    build:
+      context: .
+      dockerfile: services/call-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/call
@@ -151,7 +165,9 @@ services:
       - redis
 
   billing-service:
-    build: ./services/billing-service
+    build:
+      context: .
+      dockerfile: services/billing-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/billing
@@ -163,7 +179,9 @@ services:
       - redis
 
   ai-service:
-    build: ./services/ai-service
+    build:
+      context: .
+      dockerfile: services/ai-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/ai
@@ -175,7 +193,9 @@ services:
       - redis
 
   post-service:
-    build: ./services/post-service
+    build:
+      context: .
+      dockerfile: services/post-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/post
@@ -187,7 +207,9 @@ services:
       - redis
 
   notification-service:
-    build: ./services/notification-service
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/notification
@@ -199,7 +221,9 @@ services:
       - redis
 
   job-service:
-    build: ./services/job-service
+    build:
+      context: .
+      dockerfile: services/job-service/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/job
@@ -211,7 +235,9 @@ services:
       - redis
 
   realtime-gateway:
-    build: ./gateway/realtime-gateway
+    build:
+      context: .
+      dockerfile: gateway/realtime-gateway/Dockerfile
     environment:
       <<: *base-env
       MONGO_URI: mongodb://mongo:27017/realtime
