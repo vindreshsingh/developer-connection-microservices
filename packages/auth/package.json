@@ -1,0 +1,15 @@
+{
+  "name": "@dc/auth",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo \"no build\"",
+    "test": "echo \"no tests\"",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "@dc/config": "workspace:*"
+  }
+}
