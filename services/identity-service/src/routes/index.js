@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import authRoutes from './auth.js';
 import oauthRoutes from './oauth.js';
+import internalRoutes from './internal.js';
 
 const router = Router();
 
-// OAuth routes first (both mounted under /auth); paths don't collide
-// (/oauth/:provider vs /signup, /login, ...).
+router.use('/internal', internalRoutes);
 router.use('/', oauthRoutes);
 router.use('/', authRoutes);
 

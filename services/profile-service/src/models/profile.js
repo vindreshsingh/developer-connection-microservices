@@ -1,36 +1,11 @@
 import mongoose from 'mongoose';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
 import validator from 'validator';
-import { config } from '@dc/config';
 
-// Ported verbatim from the monolith (backend/src/models/user.js).
-//
-// identity-service is the account authority: it CREATES users (signup / OAuth)
-// and owns credentials + auth state (email, password, isEmailVerified,
-// emailVerify*, passwordReset*, tokenVersion, oauthProviders) and mints the JWT.
-//
-// In the shared-DB phase it still writes the full `users` document (signup also
-// sets profile fields), so the whole schema is ported for validation parity.
-// M6's later step splits identity vs profile fields into separate stores.
-const userSchema = new mongoose.Schema(
+// profile-service DB (`profiles` collection). `_id` equals identity-service account `_id`.
+const profileSchema = new mongoose.Schema(
   {
     firstName: { type: String, required: true, trim: true, minlength: 2, maxlength: 50 },
     lastName: { type: String, required: false, trim: true, minlength: 2, maxlength: 50 },
-    email: {
-      type: String,
-      required: false,
-      default: null,
-      unique: true,
-      sparse: true,
-      lowercase: true,
-      trim: true,
-      validate: {
-        validator: (v) => v === null || v === undefined || validator.isEmail(v),
-        message: (props) => `${props.value} is not a valid email address`,
-      },
-    },
-    password: { type: String, required: false, minlength: 8, default: null },
     photoUrl: {
       type: String,
       default: null,
@@ -41,7 +16,6 @@ const userSchema = new mongoose.Schema(
     },
     bio: { type: String, maxlength: 500, default: '' },
     skills: { type: [String], default: [] },
-    blockedUsers: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], default: [] },
     githubUrl: { type: String, default: null },
     linkedinUrl: { type: String, default: null },
     age: { type: Number, min: 18, max: 75 },
@@ -53,10 +27,6 @@ const userSchema = new mongoose.Schema(
         message: (props) => `${props.value} is not a valid gender`,
       },
     },
-    isActive: { type: Boolean, default: true },
-    deletedAt: { type: Date, default: null },
-    passwordResetToken: { type: String, default: null },
-    passwordResetExpiry: { type: Date, default: null },
     coverImageUrl: {
       type: String,
       default: null,
@@ -74,21 +44,6 @@ const userSchema = new mongoose.Schema(
           startDate: { type: Date, required: true },
           endDate: { type: Date, default: null },
           description: { type: String, default: '', maxlength: 1000 },
-        },
-      ],
-      default: [],
-    },
-    isEmailVerified: { type: Boolean, default: false },
-    emailVerifyToken: { type: String, default: null },
-    emailVerifyExpiry: { type: Date, default: null },
-    tokenVersion: { type: Number, default: 0 },
-    oauthProviders: {
-      type: [
-        {
-          provider: { type: String, enum: ['github', 'google', 'linkedin'], required: true },
-          providerId: { type: String, required: true },
-          accessToken: { type: String, default: null },
-          linkedAt: { type: Date, default: Date.now },
         },
       ],
       default: [],
@@ -120,22 +75,16 @@ const userSchema = new mongoose.Schema(
       syncedAt: { type: Date, default: null },
     },
     isPremium: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
+    deletedAt: { type: Date, default: null },
   },
-  { timestamps: true },
+  { timestamps: true, collection: 'profiles' },
 );
 
-userSchema.index({ skills: 1 });
+profileSchema.index({ skills: 1 });
 
-userSchema.pre(/^find/, function () {
+profileSchema.pre(/^find/, function () {
   this.where({ isActive: true });
 });
 
-userSchema.methods.validatePassword = async function (inputPassword) {
-  return bcrypt.compare(inputPassword, this.password);
-};
-
-userSchema.methods.getJWT = function () {
-  return jwt.sign({ id: this._id, tokenVersion: this.tokenVersion }, config.jwtSecret, { expiresIn: '1d' });
-};
-
-export default mongoose.model('User', userSchema);
+export default mongoose.model('Profile', profileSchema);

@@ -48,3 +48,12 @@ export const createUserAuth = (UserModel) => async (req, res, next) => {
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
+
+// Service-to-service routes (internal/*) — not exposed through the public gateway.
+export const requireServiceToken = (req, res, next) => {
+  const token = req.headers['x-internal-service-token'];
+  if (!token || token !== config.internalServiceToken) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+};

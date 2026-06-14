@@ -5,6 +5,7 @@ import { config } from '@dc/config';
 import { createLogger } from '@dc/logger';
 import { errorHandler } from '@dc/errors';
 import routes from './routes/index.js';
+import internalRoutes from './routes/internal.js';
 
 const log = createLogger('connection-service');
 const app = express();
@@ -26,6 +27,7 @@ app.get('/health', (_req, res) =>
   }),
 );
 
+app.use('/internal', internalRoutes);
 app.use('/request', routes);
 app.use(errorHandler);
 

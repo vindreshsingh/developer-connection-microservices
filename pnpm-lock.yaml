@@ -333,6 +333,9 @@ importers:
 
   services/identity-service:
     dependencies:
+      '@dc/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@dc/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -498,9 +501,6 @@ importers:
       '@dc/mongo':
         specifier: workspace:*
         version: link:../../packages/mongo
-      bcrypt:
-        specifier: ^6.0.0
-        version: 6.0.0
       express:
         specifier: ^5.2.1
         version: 5.2.1

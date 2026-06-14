@@ -44,9 +44,9 @@ pnpm --filter identity-service worker:dev
 - **realtime-gateway** (`:4020`) — Socket.IO — presence, chat/group/call signaling.
 
 ## Shared DB (current phase)
-All extracted services connect to the **same** MongoDB database as the monolith
-(`developer-connection`) until the per-service DB split (M6 tail). `docker-compose.yml`
-reflects this.
+Each service uses its **own MongoDB database** (see `docker-compose.yml`).
+identity + profile are fully split; other extracted services still carry lean
+cross-context model reads to be replaced with service calls or events over time.
 
 ## Migration status
 Services are extracted incrementally; the gateway routes each prefix as it goes
