@@ -10,6 +10,7 @@ import validator from 'validator';
 import User from '../models/user.js';
 import { validateSignupData, sanitizeSignupData, hashPassword } from '../lib/sanitization.js';
 import { enqueueEmail } from '../lib/emailQueue.js';
+import { tokenCookieOptions } from '../lib/cookies.js';
 import { authRateLimiter } from '@dc/ratelimiter';
 
 const router = Router();
@@ -52,7 +53,9 @@ router.post('/signup', authRateLimiter, async (req, res) => {
     const message = skipEmailVerification
       ? 'User created successfully.'
       : 'User created successfully. Please check your email to verify your account.';
-    res.status(201).json({ message, user });
+    const safeUser = user.toObject();
+    delete safeUser.password;
+    res.status(201).json({ message, user: safeUser });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -91,6 +94,8 @@ router.post('/login', authRateLimiter, async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
+    if (!user.password) return res.status(401).json({ error: 'Invalid credentials' });
+
     const isMatch = await user.validatePassword(password);
     if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -98,7 +103,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
       return res.status(403).json({ error: 'Please verify your email before logging in' });
 
     const token = user.getJWT();
-    res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    res.cookie('token', token, tokenCookieOptions);
     res.status(200).json({ message: 'Login successful', user: { ...user.toObject(), password: undefined } });
   } catch (err) {
     res.status(500).json({ error: err.message });

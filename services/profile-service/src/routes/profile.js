@@ -14,6 +14,7 @@ import { uploadImageBuffer } from '@dc/cloudinary';
 import { GitHubEnrichmentService } from '../lib/githubEnrichment.js';
 import { LinkedInEnrichmentService } from '../lib/linkedinEnrichment.js';
 import { decryptToken } from '../lib/encryption.js';
+import { hashPassword } from '../lib/sanitization.js';
 
 const router = Router();
 
@@ -80,7 +81,20 @@ router.patch('/', userAuth, async (req, res) => {
     if (invalidFields.length > 0)
       return res.status(400).json({ error: `Invalid fields: ${invalidFields.join(', ')}` });
 
-    const user = await User.findByIdAndUpdate(req.user._id, req.body, { new: true, runValidators: true });
+    const updates = { ...req.body };
+
+    if (updates.password !== undefined) {
+      if (!updates.password || updates.password.length < 8)
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      updates.password = await hashPassword(updates.password);
+      // Invalidate existing sessions when the password changes (parity with reset-password).
+      updates.tokenVersion = (req.user.tokenVersion ?? 0) + 1;
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, updates, {
+      new: true,
+      runValidators: true,
+    }).select('-password');
     res.status(200).json({ message: 'Profile updated successfully', user });
   } catch (err) {
     res.status(400).json({ error: err.message });

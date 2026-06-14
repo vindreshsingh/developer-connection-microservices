@@ -22,8 +22,9 @@ the JWT. Public endpoints (no edge auth) — they set/clear the `token` cookie.
 
 - Signup currently writes the **whole** `users` document (profile fields too) —
   the identity/profile field split is the later M6 DB-split step.
-- Transactional email uses the shared `email` BullMQ queue (drained by the
-  existing worker) when `REDIS_URL` is set; otherwise sends inline.
+- Transactional email uses the shared `email` BullMQ queue when `REDIS_URL` is
+  set — drained by `identity-worker` (`pnpm worker` / `pnpm worker:dev`); otherwise
+  sends inline during the request.
 - `ENCRYPTION_KEY` + `JWT_SECRET` must match the monolith for token parity.
 - `OAUTH_CALLBACK_BASE_URL` must be the public gateway origin.
 
