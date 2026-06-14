@@ -54,4 +54,40 @@ router.get('/block-context/:userId', async (req, res) => {
   });
 });
 
+router.get('/accepted-connection/:userA/:userB', async (req, res) => {
+  const { userA, userB } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userA) || !mongoose.Types.ObjectId.isValid(userB)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const connection = await ConnectionRequest.findOne({
+    status: 'accepted',
+    $or: [
+      { fromUserId: userA, toUserId: userB },
+      { fromUserId: userB, toUserId: userA },
+    ],
+  });
+
+  res.json({ accepted: Boolean(connection) });
+});
+
+router.get('/accepted-connections/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const uid = new mongoose.Types.ObjectId(userId);
+  const requests = await ConnectionRequest.find({
+    status: 'accepted',
+    $or: [{ fromUserId: uid }, { toUserId: uid }],
+  }).select('fromUserId toUserId');
+
+  const connectionIds = requests.map((request) =>
+    (request.fromUserId.equals(uid) ? request.toUserId : request.fromUserId).toString(),
+  );
+
+  res.json({ connectionIds });
+});
+
 export default router;

@@ -1,4 +1,4 @@
-import ConnectionRequest from '../models/connectionRequest.js';
+import { getAcceptedConnectionIds } from '@dc/service-clients';
 import { getRedis } from '@dc/redis';
 
 // Ported from the monolith (backend/src/sockets/presenceService.js). Tracks
@@ -26,14 +26,7 @@ class PresenceService {
   }
 
   async _acceptedConnectionIds(userId) {
-    const requests = await ConnectionRequest.find({
-      status: 'accepted',
-      $or: [{ fromUserId: userId }, { toUserId: userId }],
-    }).select('fromUserId toUserId');
-
-    return requests.map((request) =>
-      (request.fromUserId.equals(userId) ? request.toUserId : request.fromUserId).toString(),
-    );
+    return getAcceptedConnectionIds(userId);
   }
 
   async _broadcastPresence(userId, status) {
