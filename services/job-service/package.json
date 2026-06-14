@@ -12,12 +12,13 @@
   },
   "dependencies": {
     "express": "^5.2.1",
-    "ioredis": "^5.11.1",
+    "mongoose": "^9.6.3",
     "@dc/auth": "workspace:*",
+    "@dc/cache": "workspace:*",
     "@dc/config": "workspace:*",
-    "@dc/logger": "workspace:*",
     "@dc/errors": "workspace:*",
-    "@dc/events": "workspace:*",
-    "@dc/mongo": "workspace:*"
+    "@dc/logger": "workspace:*",
+    "@dc/mongo": "workspace:*",
+    "@dc/redis": "workspace:*"
   }
 }
