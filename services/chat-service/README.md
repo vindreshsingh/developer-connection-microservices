@@ -1,17 +1,32 @@
 # chat-service
 
-Direct messaging conversations + message history (realtime via realtime-gateway).
+**Status:** M5 — extracted (shared-DB phase).
 
-- **Port:** `4004`
-- **Route prefixes:** `/chat`
-- **Owned models:** `conversation`, `message`
-- **Publishes:** `message.sent`, `conversation.read`
-- **Consumes:** `connection.accepted`
+REST endpoints for 1:1 chat, mounted at `/chat`. Realtime send/typing/react/
+read live in the **realtime-gateway**; this service serves the HTTP read and
+bootstrap paths.
 
-## Migration checklist
-- [ ] Port routes from the monolith into `src/routes/`.
-- [ ] Move owned Mongoose models into `src/models/`.
-- [ ] Publish/consume events via `@dc/events`.
-- [ ] Add tests.
-- [ ] Flip the gateway route to this service.
-- [ ] Remove the route from the monolith.
+## Routes
+
+- `GET    /chat/conversations` — list conversations (block-aware, hide-but-retain)
+- `POST   /chat/conversations/:userId` — get-or-create with an accepted connection
+- `GET    /chat/conversations/:conversationId/messages` — paginated history
+- `POST   /chat/conversations/:conversationId/read` — mark read
+
+## Owned models
+
+`conversations`, `messages`.
+
+## Shared-DB phase reads
+
+`users` (block lists, profile fields), `connectionrequests` (accepted-connection
+boundary via `canUsersChat`). To be replaced by profile/connection service APIs
+or events in M6.
+
+## Run locally
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm --filter chat-service dev
+```
