@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "worker": "node src/worker.js",
+    "worker:dev": "node --watch src/worker.js",
     "build": "echo \"no build\"",
     "test": "node --test",
     "lint": "echo \"no lint\""
@@ -23,7 +25,6 @@
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
     "passport-linkedin-oauth2": "^2.0.0",
-    "@dc/auth": "workspace:*",
     "@dc/config": "workspace:*",
     "@dc/logger": "workspace:*",
     "@dc/errors": "workspace:*",

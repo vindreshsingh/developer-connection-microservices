@@ -8,5 +8,7 @@
     "test": "echo \"no tests\"",
     "lint": "echo \"no lint\""
   },
-  "dependencies": {}
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
 }

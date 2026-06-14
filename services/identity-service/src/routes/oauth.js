@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { createLogger } from '@dc/logger';
 import passport from '../middlewares/passport.js';
+import { tokenCookieOptions } from '../lib/cookies.js';
 
 const router = Router();
 const log = createLogger('identity-service:oauth');
@@ -65,12 +66,7 @@ router.get('/oauth/:provider/callback', (req, res, next) => {
     }
 
     const token = user.getJWT();
-    res.cookie('token', token, {
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
+    res.cookie('token', token, tokenCookieOptions);
 
     if (user._needsEmail) {
       return res.redirect(`${process.env.FRONTEND_URL}/complete-profile?needsEmail=true`);

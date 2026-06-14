@@ -1,4 +1,43 @@
 # Local dev stack: infra + all microservices + the gateway.
+#
+# Shared-DB phase: every service uses the same Mongo database as the monolith
+# (`developer-connection`). Gateway routes extracted prefixes to services; the
+# rest falls through to MONOLITH_URL.
+x-shared-env: &shared-env
+  MONGO_URI: mongodb://mongo:27017/developer-connection
+  JWT_SECRET: change-me
+  REDIS_URL: redis://redis:6379
+  FRONTEND_URL: http://localhost:5173
+  NODE_ENV: development
+
+# Dev-only AES key for OAuth token encryption (64 hex chars). Do NOT use in prod.
+x-identity-env: &identity-env
+  <<: *shared-env
+  ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  OAUTH_CALLBACK_BASE_URL: http://localhost:4000
+  SKIP_EMAIL_VERIFICATION: "true"
+
+x-profile-env: &profile-env
+  <<: *shared-env
+  ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+x-gateway-env: &gateway-env
+  <<: *shared-env
+  PORT: "4000"
+  MONOLITH_URL: http://host.docker.internal:3008
+  IDENTITY_URL: http://identity-service:4001
+  PROFILE_URL: http://profile-service:4005
+  NOTIFICATION_URL: http://notification-service:4010
+  AI_URL: http://ai-service:4008
+  JOB_URL: http://job-service:4011
+  POST_URL: http://post-service:4009
+  BILLING_URL: http://billing-service:4007
+  CONNECTION_URL: http://connection-service:4003
+  CHAT_URL: http://chat-service:4002
+  GROUP_URL: http://group-service:4004
+  CALL_URL: http://call-service:4006
+  REALTIME_URL: http://realtime-gateway:4020
+
 services:
   mongo:
     image: mongo:7
@@ -17,36 +56,40 @@ services:
 
   api-gateway:
     build: ./gateway/api-gateway
-    environment:
-      - PORT=4000
-      - JWT_SECRET=change-me
-      # M1: send everything to the monolith. Override per-service as they go live.
-      - MONOLITH_URL=http://host.docker.internal:3008
+    environment: *gateway-env
     ports:
       - "4000:4000"
     depends_on:
       - redis
+      - identity-service
+      - profile-service
 
   identity-service:
     build: ./services/identity-service
     environment:
-      - PORT=4001
-      - MONGO_URI=mongodb://mongo:27017/identity
-      - REDIS_URL=redis://redis:6379
+      <<: *identity-env
+      PORT: "4001"
     ports:
       - "4001:4001"
     depends_on:
       - mongo
       - redis
 
+  identity-worker:
+    build: ./services/identity-service
+    command: ["pnpm", "worker"]
+    environment: *identity-env
+    depends_on:
+      - redis
+      - identity-service
+
   profile-service:
     build: ./services/profile-service
     environment:
-      - PORT=4002
-      - MONGO_URI=mongodb://mongo:27017/profile
-      - REDIS_URL=redis://redis:6379
+      <<: *profile-env
+      PORT: "4005"
     ports:
-      - "4002:4002"
+      - "4005:4005"
     depends_on:
       - mongo
       - redis
@@ -54,9 +97,8 @@ services:
   connection-service:
     build: ./services/connection-service
     environment:
-      - PORT=4003
-      - MONGO_URI=mongodb://mongo:27017/connection
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4003"
     ports:
       - "4003:4003"
     depends_on:
@@ -66,11 +108,10 @@ services:
   chat-service:
     build: ./services/chat-service
     environment:
-      - PORT=4004
-      - MONGO_URI=mongodb://mongo:27017/chat
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4002"
     ports:
-      - "4004:4004"
+      - "4002:4002"
     depends_on:
       - mongo
       - redis
@@ -78,11 +119,10 @@ services:
   group-service:
     build: ./services/group-service
     environment:
-      - PORT=4005
-      - MONGO_URI=mongodb://mongo:27017/group
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4004"
     ports:
-      - "4005:4005"
+      - "4004:4004"
     depends_on:
       - mongo
       - redis
@@ -90,9 +130,8 @@ services:
   call-service:
     build: ./services/call-service
     environment:
-      - PORT=4006
-      - MONGO_URI=mongodb://mongo:27017/call
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4006"
     ports:
       - "4006:4006"
     depends_on:
@@ -102,9 +141,8 @@ services:
   billing-service:
     build: ./services/billing-service
     environment:
-      - PORT=4007
-      - MONGO_URI=mongodb://mongo:27017/billing
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4007"
     ports:
       - "4007:4007"
     depends_on:
@@ -114,9 +152,8 @@ services:
   ai-service:
     build: ./services/ai-service
     environment:
-      - PORT=4008
-      - MONGO_URI=mongodb://mongo:27017/ai
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4008"
     ports:
       - "4008:4008"
     depends_on:
@@ -126,9 +163,8 @@ services:
   post-service:
     build: ./services/post-service
     environment:
-      - PORT=4009
-      - MONGO_URI=mongodb://mongo:27017/post
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4009"
     ports:
       - "4009:4009"
     depends_on:
@@ -138,9 +174,8 @@ services:
   notification-service:
     build: ./services/notification-service
     environment:
-      - PORT=4010
-      - MONGO_URI=mongodb://mongo:27017/notification
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4010"
     ports:
       - "4010:4010"
     depends_on:
@@ -150,11 +185,21 @@ services:
   job-service:
     build: ./services/job-service
     environment:
-      - PORT=4011
-      - MONGO_URI=mongodb://mongo:27017/job
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      PORT: "4011"
     ports:
       - "4011:4011"
+    depends_on:
+      - mongo
+      - redis
+
+  realtime-gateway:
+    build: ./gateway/realtime-gateway
+    environment:
+      <<: *shared-env
+      PORT: "4020"
+    ports:
+      - "4020:4020"
     depends_on:
       - mongo
       - redis
