@@ -21,6 +21,7 @@
     "@dc/errors": "workspace:*",
     "@dc/mongo": "workspace:*",
     "@dc/cloudinary": "workspace:*",
-    "@dc/service-clients": "workspace:*"
+    "@dc/service-clients": "workspace:*",
+    "@dc/observability": "workspace:*"
   }
 }

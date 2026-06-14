@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'bullmq';
 import { createRedisClient, isRedisEnabled } from '@dc/redis';
 import { createLogger } from '@dc/logger';
+import { initSentry } from '@dc/observability';
 import { sendEmail } from './lib/email.js';
 
 const log = createLogger('identity-worker');
+initSentry('identity-worker');
 const QUEUE_NAME = 'email';
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(process.argv[1]);

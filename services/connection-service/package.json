@@ -19,6 +19,7 @@
     "@dc/logger": "workspace:*",
     "@dc/mongo": "workspace:*",
     "@dc/ratelimiter": "workspace:*",
-    "@dc/service-clients": "workspace:*"
+    "@dc/service-clients": "workspace:*",
+    "@dc/observability": "workspace:*"
   }
 }

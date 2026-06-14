@@ -1,5 +1,5 @@
 {
-  "name": "@dc/errors",
+  "name": "@dc/observability",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.js",
@@ -9,6 +9,6 @@
     "lint": "echo \"no lint\""
   },
   "dependencies": {
-    "@dc/observability": "workspace:*"
+    "@sentry/node": "^10.57.0"
   }
 }

@@ -31,6 +31,7 @@
     "@dc/errors": "workspace:*",
     "@dc/mongo": "workspace:*",
     "@dc/redis": "workspace:*",
-    "@dc/ratelimiter": "workspace:*"
+    "@dc/ratelimiter": "workspace:*",
+    "@dc/observability": "workspace:*"
   }
 }
