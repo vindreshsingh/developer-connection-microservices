@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import CallSession from '../models/callSession.js';
+import getCallSessionModel from '../models/callSession.js';
 import { canUserAccessGroup } from '../lib/groupAuthorization.js';
 import { createCallSummaryMessage } from '../lib/callSummaryUtils.js';
 
@@ -13,7 +13,7 @@ const loadActiveGroupCall = async (socket, callId) => {
     return null;
   }
 
-  const call = await CallSession.findById(callId);
+  const call = await getCallSessionModel().findById(callId);
   if (!call) {
     socket.emit('call_error', { event: 'group_call', message: 'Call not found.' });
     return null;

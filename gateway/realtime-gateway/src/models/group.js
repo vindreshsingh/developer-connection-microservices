@@ -1,9 +1,8 @@
 import mongoose from 'mongoose';
+import { getGroupConn } from '../lib/db.js';
 
 const { ObjectId } = mongoose.Schema.Types;
 
-// Ported verbatim from the monolith (backend/src/models/group.js).
-// Owned by group-service; the socket layer reads membership for authorization.
 const memberSchema = new mongoose.Schema(
   {
     userId: { type: ObjectId, ref: 'User', required: true },
@@ -41,4 +40,7 @@ groupSchema.methods.isAdmin = function (userId) {
   return m?.role === 'admin';
 };
 
-export default mongoose.model('Group', groupSchema);
+export default function getGroupModel() {
+  const conn = getGroupConn();
+  return conn.models.Group || conn.model('Group', groupSchema);
+}

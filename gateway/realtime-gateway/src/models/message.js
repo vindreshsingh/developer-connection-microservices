@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
+import { getChatConn } from '../lib/db.js';
 
-// Ported verbatim from the monolith (backend/src/models/message.js).
 const reactionSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -45,4 +45,7 @@ messageSchema.pre('validate', function () {
   if (this.type !== 'snippet') this.language = null;
 });
 
-export default mongoose.model('Message', messageSchema);
+export default function getMessageModel() {
+  const conn = getChatConn();
+  return conn.models.Message || conn.model('Message', messageSchema);
+}

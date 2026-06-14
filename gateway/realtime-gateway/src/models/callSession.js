@@ -1,9 +1,8 @@
 import mongoose from 'mongoose';
+import { getCallConn } from '../lib/db.js';
 
 const { ObjectId } = mongoose.Schema.Types;
 
-// Ported verbatim from the monolith (backend/src/models/callSession.js).
-// Owned by call-service; the socket layer reads/writes call lifecycle state.
 const participantSchema = new mongoose.Schema(
   {
     userId: { type: ObjectId, ref: 'User', required: true },
@@ -37,4 +36,7 @@ callSessionSchema.methods.isParticipant = function (userId) {
   return this.participants.some((p) => p.userId.equals(userId));
 };
 
-export default mongoose.model('CallSession', callSessionSchema);
+export default function getCallSessionModel() {
+  const conn = getCallConn();
+  return conn.models.CallSession || conn.model('CallSession', callSessionSchema);
+}

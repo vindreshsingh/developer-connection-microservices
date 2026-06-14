@@ -1,10 +1,9 @@
-import Conversation from '../models/conversation.js';
-import Message from '../models/message.js';
-import GroupMessage from '../models/groupMessage.js';
+import getConversationModel from '../models/conversation.js';
+import getMessageModel from '../models/message.js';
+import getGroupMessageModel from '../models/groupMessage.js';
 
-// Ported verbatim from the monolith (backend/src/utils/callSummaryUtils.js).
-// Idempotent (upsert by callSummary.callId) post-call system message, emitted
-// into the chat/group thread. `io` is the realtime-gateway's Socket.IO server.
+const CONVERSATION_ROOM = (conversationId) => `conversation:${conversationId}`;
+
 export const createCallSummaryMessage = async (io, call) => {
   if (call.status !== 'ended') return;
   if (call.type === '1:1') {
@@ -16,10 +15,10 @@ export const createCallSummaryMessage = async (io, call) => {
 
 async function _create1on1Summary(io, call) {
   const participantIds = call.participants.map((p) => p.userId);
-  const conv = await Conversation.findOne({ participants: { $all: participantIds } });
+  const conv = await getConversationModel().findOne({ participants: { $all: participantIds } });
   if (!conv) return;
 
-  const result = await Message.findOneAndUpdate(
+  const result = await getMessageModel().findOneAndUpdate(
     { 'callSummary.callId': call._id },
     {
       $setOnInsert: {
@@ -33,15 +32,22 @@ async function _create1on1Summary(io, call) {
   );
 
   if (io && result) {
-    io.to(`conv:${conv._id}`).emit('message_received', {
-      message: result.toObject(),
+    io.to(CONVERSATION_ROOM(conv._id)).emit('message_received', {
+      _id: result._id.toString(),
       conversationId: conv._id.toString(),
+      senderId: result.senderId.toString(),
+      type: result.type,
+      body: result.body,
+      language: result.language,
+      reactions: result.reactions,
+      callSummary: result.callSummary,
+      createdAt: result.createdAt,
     });
   }
 }
 
 async function _createGroupSummary(io, call) {
-  const result = await GroupMessage.findOneAndUpdate(
+  const result = await getGroupMessageModel().findOneAndUpdate(
     { 'callSummary.callId': call._id },
     {
       $setOnInsert: {
@@ -56,8 +62,13 @@ async function _createGroupSummary(io, call) {
 
   if (io && result) {
     io.to(`group:${call.groupId}`).emit('group_message_received', {
-      message: result.toObject(),
-      groupId: call.groupId.toString(),
+      _id: result._id.toString(),
+      groupId: result.groupId.toString(),
+      senderId: result.senderId.toString(),
+      type: result.type,
+      body: result.body,
+      language: result.language,
+      createdAt: result.createdAt,
     });
   }
 }

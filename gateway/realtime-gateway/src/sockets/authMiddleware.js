@@ -1,13 +1,8 @@
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
 import { config } from '@dc/config';
-import User from '../models/user.js';
+import { validateSession, getProfile } from '@dc/service-clients';
 
-// Ported from the monolith (backend/src/sockets/authMiddleware.js). The
-// realtime-gateway verifies the same httpOnly `token` cookie itself — the
-// api-gateway forwards the WS upgrade (cookies intact) but its HTTP edge-auth
-// middleware does not run on raw socket upgrades, so there is no trusted
-// internal header on the handshake. Same auth system as REST, no second one.
 const socketAuthMiddleware = async (socket, next) => {
   try {
     const rawCookie = socket.handshake.headers?.cookie;
@@ -17,14 +12,19 @@ const socketAuthMiddleware = async (socket, next) => {
     if (!token) return next(new Error('Authentication required'));
 
     const decoded = jwt.verify(token, config.jwtSecret);
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user) return next(new Error('User not found'));
+    const userId = decoded.id ?? decoded._id ?? decoded.sub;
+    if (!userId) return next(new Error('Authentication required'));
 
-    if (decoded.tokenVersion !== user.tokenVersion) {
-      return next(new Error('Session expired. Please login again'));
-    }
+    const valid = await validateSession(
+      userId,
+      decoded.tokenVersion !== undefined ? Number(decoded.tokenVersion) : undefined,
+    );
+    if (!valid) return next(new Error('Session expired. Please login again'));
 
-    socket.user = user;
+    const profile = await getProfile(userId);
+    if (!profile) return next(new Error('User not found'));
+
+    socket.user = { ...profile, _id: profile._id || userId };
     next();
   } catch {
     next(new Error('Invalid or expired token'));

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import Conversation from '../models/conversation.js';
-import Message from '../models/message.js';
+import getConversationModel from '../models/conversation.js';
+import getMessageModel from '../models/message.js';
 import { canUsersChat } from '../lib/chatAuthorization.js';
 
 // Ported verbatim from the monolith (backend/src/sockets/chatHandlers.js).
@@ -14,7 +14,7 @@ const authorizeConversationAccess = async (socket, conversationId) => {
     return null;
   }
 
-  const conversation = await Conversation.findOne({
+  const conversation = await getConversationModel().findOne({
     _id: conversationId,
     participants: socket.user._id,
   });
@@ -85,7 +85,7 @@ export const registerChatHandlers = (io, socket) => {
         return;
       }
 
-      const message = await Message.findOne({ _id: messageId, conversationId });
+      const message = await getMessageModel().findOne({ _id: messageId, conversationId });
       if (!message) {
         socket.emit('chat_error', { event: 'react', message: 'Message not found' });
         return;
@@ -151,7 +151,7 @@ export const registerChatHandlers = (io, socket) => {
       if (!access) return;
       const { conversation } = access;
 
-      const message = await Message.create({
+      const message = await getMessageModel().create({
         conversationId,
         senderId: socket.user._id,
         type,
@@ -163,9 +163,9 @@ export const registerChatHandlers = (io, socket) => {
       await conversation.save();
 
       io.to(ROOM(conversationId)).emit('message_received', {
-        _id: message._id,
-        conversationId: message.conversationId,
-        senderId: message.senderId,
+        _id: message._id.toString(),
+        conversationId: message.conversationId.toString(),
+        senderId: message.senderId.toString(),
         type: message.type,
         body: message.body,
         language: message.language,
