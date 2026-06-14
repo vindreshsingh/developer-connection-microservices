@@ -1,32 +1,23 @@
-import ConnectionRequest from '../models/connectionRequest.js';
-import User from '../models/user.js';
+import { getBlockContext, hasAcceptedConnection } from '@dc/service-clients';
 
-// Ported verbatim from the monolith (backend/src/utils/chatAuthorization.js).
-// "Can these two users chat right now?" — accepted connection AND no block in
-// either direction. Re-checked on every socket event.
 export const canUsersChat = async (userAId, userBId) => {
   if (userAId.toString() === userBId.toString()) {
     return { allowed: false, reason: 'Cannot chat with yourself' };
   }
 
-  const [userA, userB, connection] = await Promise.all([
-    User.findById(userAId).select('blockedUsers'),
-    User.findById(userBId).select('blockedUsers'),
-    ConnectionRequest.findOne({
-      status: 'accepted',
-      $or: [
-        { fromUserId: userAId, toUserId: userBId },
-        { fromUserId: userBId, toUserId: userAId },
-      ],
-    }),
+  const [ctxA, ctxB, accepted] = await Promise.all([
+    getBlockContext(userAId),
+    getBlockContext(userBId),
+    hasAcceptedConnection(userAId, userBId),
   ]);
 
-  if (!userA || !userB) return { allowed: false, reason: 'User not found' };
-  if (!connection) return { allowed: false, reason: 'You can only message accepted connections' };
+  if (!accepted) return { allowed: false, reason: 'You can only message accepted connections' };
 
-  const aBlockedB = userA.blockedUsers.some((id) => id.equals(userBId));
-  const bBlockedA = userB.blockedUsers.some((id) => id.equals(userAId));
-  if (aBlockedB || bBlockedA) return { allowed: false, reason: 'You cannot message this user' };
+  const aId = userAId.toString();
+  const bId = userBId.toString();
+  if (ctxA.blockedUsers.includes(bId) || ctxB.blockedUsers.includes(aId)) {
+    return { allowed: false, reason: 'You cannot message this user' };
+  }
 
   return { allowed: true };
 };

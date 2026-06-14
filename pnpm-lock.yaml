@@ -50,6 +50,9 @@ importers:
       '@dc/redis':
         specifier: workspace:*
         version: link:../../packages/redis
+      '@dc/service-clients':
+        specifier: workspace:*
+        version: link:../../packages/service-clients
       '@socket.io/redis-adapter':
         specifier: ^8.3.0
         version: 8.3.0(socket.io-adapter@2.5.7)
