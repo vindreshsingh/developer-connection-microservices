@@ -64,6 +64,13 @@ const ROUTES = [
   { prefix: '/posts', target: process.env.POST_URL }, // M3
   { prefix: '/billing', target: process.env.BILLING_URL }, // M4
   { prefix: '/request', target: process.env.CONNECTION_URL }, // M4
+  { prefix: '/chat', target: process.env.CHAT_URL }, // M5
+  { prefix: '/groups', target: process.env.GROUP_URL }, // M5
+  { prefix: '/calls', target: process.env.CALL_URL }, // M5
+  // M5: Socket.IO front door. http-proxy-middleware (ws: true) honors the
+  // pathFilter on the upgrade event too, so both the HTTP polling handshake
+  // (`GET /socket.io/?...`) and the WebSocket upgrade go to the realtime-gateway.
+  { prefix: '/socket.io', target: process.env.REALTIME_URL }, // M5
 ];
 
 const onProxyError = (err, _req, res) => {
@@ -93,13 +100,19 @@ for (const { prefix, target } of ROUTES) {
   log.info(`Routing ${prefix} -> ${target}`);
 }
 
-// Default: proxy everything else (REST + WebSocket upgrade) to the monolith.
+// Default: proxy everything else to the monolith.
+//
+// ws is intentionally DISABLED here as of M5: the only WebSocket traffic is
+// Socket.IO, which now routes to the realtime-gateway via the /socket.io entry
+// above. A catch-all with ws:true has no pathFilter, so it would also grab
+// /socket.io upgrades and race the realtime-gateway proxy. Disabling it keeps
+// the upgrade routing deterministic.
 app.use(
   '/',
   createProxyMiddleware({
     target: MONOLITH_URL,
     changeOrigin: true,
-    ws: true,
+    ws: false,
     on: { error: onProxyError },
   }),
 );

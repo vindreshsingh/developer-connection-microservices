@@ -1,17 +1,40 @@
 # call-service
 
-1:1 and group video calls (LiveKit tokens + signaling).
+**Status:** M5 — extracted (shared-DB phase).
 
-- **Port:** `4006`
-- **Route prefixes:** `/calls`
-- **Owned models:** `callSession`
-- **Publishes:** `call.initiated`, `call.ended`
-- **Consumes:** —
+REST endpoints for 1:1 and group video calls, mounted at `/calls`. WebRTC/LiveKit
+socket signaling lives in the **realtime-gateway**; this service owns the call
+lifecycle and issues LiveKit room tokens.
 
-## Migration checklist
-- [ ] Port routes from the monolith into `src/routes/`.
-- [ ] Move owned Mongoose models into `src/models/`.
-- [ ] Publish/consume events via `@dc/events`.
-- [ ] Add tests.
-- [ ] Flip the gateway route to this service.
-- [ ] Remove the route from the monolith.
+## Routes
+
+- `POST   /calls` — initiate a 1:1 or group call
+- `GET    /calls` — paginated history
+- `GET    /calls/:callId` — metadata (participant only)
+- `POST   /calls/:callId/accept` | `/decline` | `/end`
+- `POST   /calls/group-token` — LiveKit room token
+
+## Owned models
+
+`callsessions`.
+
+## Realtime emits
+
+REST-side notifications (`call_incoming`, `group_call_started`, `call_rejected`,
+`call_ended`, plus `call_summary` messages) are pushed to the realtime-gateway's
+rooms via `@dc/realtime` (`@socket.io/redis-emitter`). **Requires `REDIS_URL`**;
+without Redis those emits are no-ops.
+
+## Shared-DB phase reads/writes
+
+Reads: `users`, `connectionrequests`, `groups`, `plans`. Writes: `call_summary`
+into chat's `messages` / `groupmessages`. To be decoupled via service APIs (or
+events) in M6.
+
+## Run locally
+
+```bash
+pnpm install
+cp .env.example .env   # set MONGO_URI + JWT_SECRET (REDIS_URL + LIVEKIT_* optional)
+pnpm --filter call-service dev
+```

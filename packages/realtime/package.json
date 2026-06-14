@@ -1,0 +1,16 @@
+{
+  "name": "@dc/realtime",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo \"no build\"",
+    "test": "echo \"no tests\"",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "@socket.io/redis-emitter": "^5.1.0",
+    "@dc/redis": "workspace:*",
+    "@dc/logger": "workspace:*"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "realtime-gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "build": "echo \"no build\"",
+    "test": "node --test",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cookie": "^1.0.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.3",
+    "socket.io": "^4.8.1",
+    "@dc/config": "workspace:*",
+    "@dc/logger": "workspace:*",
+    "@dc/mongo": "workspace:*",
+    "@dc/redis": "workspace:*"
+  }
+}
