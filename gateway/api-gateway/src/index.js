@@ -51,7 +51,7 @@ app.get('/_gateway/health', (_req, res) =>
 // Strangler Fig: as each microservice goes live, point its prefix at the new
 // service URL here. Anything not listed falls through to the monolith below.
 const ROUTES = [
-  // { prefix: '/notifications', target: process.env.NOTIFICATION_URL },
+  { prefix: '/notifications', target: process.env.NOTIFICATION_URL }, // M2
   // { prefix: '/ai',            target: process.env.AI_URL },
 ];
 
@@ -63,13 +63,23 @@ const onProxyError = (err, _req, res) => {
 };
 
 for (const { prefix, target } of ROUTES) {
-  if (target) {
-    app.use(
-      prefix,
-      createProxyMiddleware({ target, changeOrigin: true, ws: true, on: { error: onProxyError } }),
-    );
-    log.info(`Routing ${prefix} -> ${target}`);
-  }
+  if (!target) continue;
+  // Mount at root with a pathFilter (not app.use(prefix, ...)) so the FULL
+  // original path — including the prefix — is forwarded to the service. Using
+  // an Express mount path would strip the prefix before proxying.
+  app.use(
+    createProxyMiddleware({
+      target,
+      changeOrigin: true,
+      ws: true,
+      // Predicate (not a glob) so matching is deterministic: the whole prefix
+      // and any sub-path go to the service; the leading-segment check avoids
+      // matching look-alikes like `/notifications-archive`.
+      pathFilter: (pathname) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+      on: { error: onProxyError },
+    }),
+  );
+  log.info(`Routing ${prefix} -> ${target}`);
 }
 
 // Default: proxy everything else (REST + WebSocket upgrade) to the monolith.
