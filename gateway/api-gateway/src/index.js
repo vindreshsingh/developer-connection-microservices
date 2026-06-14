@@ -8,6 +8,7 @@ import { verifyToken } from '@dc/auth';
 import { config } from '@dc/config';
 import { createLogger } from '@dc/logger';
 import { initSentry, captureException } from '@dc/observability';
+import { ensureCsrfSession, generateCsrfToken, doubleCsrfProtection } from './csrf.js';
 
 const log = createLogger('api-gateway');
 initSentry('api-gateway');
@@ -65,6 +66,19 @@ app.use((req, _res, next) => {
 app.get('/_gateway/health', (_req, res) =>
   res.json({ status: 'ok', service: 'api-gateway', monolith: MONOLITH_URL }),
 );
+
+// --- CSRF protection ---------------------------------------------------------
+// Establish the CSRF session cookie for every request, then expose a token
+// endpoint the SPA calls before issuing mutations. doubleCsrfProtection rejects
+// any non-ignored method (POST/PUT/PATCH/DELETE) whose `x-csrf-token` header
+// doesn't match — covering all proxied upstreams, including the monolith.
+app.use(ensureCsrfSession);
+
+app.get('/csrf-token', (req, res) => {
+  res.json({ csrfToken: generateCsrfToken(req, res) });
+});
+
+app.use(doubleCsrfProtection);
 
 // --- Service routing table ---------------------------------------------------
 // Strangler Fig: as each microservice goes live, point its prefix at the new
@@ -131,6 +145,26 @@ app.use(
     on: { error: onProxyError },
   }),
 );
+
+// Error handler — must be last. Turns doubleCsrfProtection's rejection (and any
+// other thrown error) into a JSON response instead of Express's HTML default.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const status = err.statusCode ?? 500;
+  if (status === 403 && err.code === 'EBADCSRFTOKEN') {
+    log.warn({ path: req.path, method: req.method }, 'CSRF validation failed');
+  } else {
+    log.error({ err: err.message }, 'gateway error');
+  }
+  if (!res.headersSent) {
+    res.status(status).json({
+      error: {
+        code: err.code ?? 'INTERNAL',
+        message: status < 500 ? err.message : 'Internal server error',
+      },
+    });
+  }
+});
 
 // http-proxy-middleware requires an explicit `upgrade` handler on the HTTP
 // server — `app.listen()` alone leaves WebSocket handshakes hanging (pending).

@@ -10,6 +10,7 @@ if (existsSync(envPath)) loadDotenv({ path: envPath });
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret: process.env.JWT_SECRET ?? 'change-me',
+  csrfSecret: process.env.CSRF_SECRET ?? 'change-me-csrf',
   mongoUri: process.env.MONGO_URI ?? 'mongodb://localhost:27017',
   redisUrl: process.env.REDIS_URL,
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
