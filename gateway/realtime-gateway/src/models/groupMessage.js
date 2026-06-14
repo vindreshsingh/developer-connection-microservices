@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
+import { getGroupConn } from '../lib/db.js';
 
 const { ObjectId } = mongoose.Schema.Types;
 
-// Ported verbatim from the monolith (backend/src/models/groupMessage.js).
 const reactionSchema = new mongoose.Schema(
   {
     userId: { type: ObjectId, ref: 'User', required: true },
@@ -47,4 +47,7 @@ groupMessageSchema.pre('validate', function () {
   if (this.type !== 'snippet') this.language = null;
 });
 
-export default mongoose.model('GroupMessage', groupMessageSchema);
+export default function getGroupMessageModel() {
+  const conn = getGroupConn();
+  return conn.models.GroupMessage || conn.model('GroupMessage', groupMessageSchema);
+}

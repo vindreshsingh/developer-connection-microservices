@@ -240,7 +240,9 @@ services:
       dockerfile: gateway/realtime-gateway/Dockerfile
     environment:
       <<: *base-env
-      MONGO_URI: mongodb://mongo:27017/realtime
+      CHAT_MONGO_URI: mongodb://mongo:27017/chat
+      GROUP_MONGO_URI: mongodb://mongo:27017/group
+      CALL_MONGO_URI: mongodb://mongo:27017/call
       PORT: "4020"
     ports:
       - "4020:4020"

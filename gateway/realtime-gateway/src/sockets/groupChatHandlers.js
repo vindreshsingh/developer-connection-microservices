@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import GroupMessage from '../models/groupMessage.js';
-import Group from '../models/group.js';
+import getGroupMessageModel from '../models/groupMessage.js';
+import getGroupModel from '../models/group.js';
 import { canUserAccessGroup } from '../lib/groupAuthorization.js';
 
 // Ported verbatim from the monolith (backend/src/sockets/groupChatHandlers.js).
@@ -20,7 +20,7 @@ const authorizeGroupAccess = async (socket, groupId) => {
     return null;
   }
 
-  const group = await Group.findOne({ _id: groupId, deletedAt: null });
+  const group = await getGroupModel().findOne({ _id: groupId, deletedAt: null });
   return { group, role };
 };
 
@@ -52,7 +52,7 @@ export const registerGroupChatHandlers = (io, socket) => {
       if (!access) return;
       const { group } = access;
 
-      const message = await GroupMessage.create({
+      const message = await getGroupMessageModel().create({
         groupId,
         senderId: socket.user._id,
         type,
@@ -64,9 +64,9 @@ export const registerGroupChatHandlers = (io, socket) => {
       group.save().catch(() => {});
 
       io.to(ROOM(groupId)).emit('group_message_received', {
-        _id: message._id,
-        groupId: message.groupId,
-        senderId: message.senderId,
+        _id: message._id.toString(),
+        groupId: message.groupId.toString(),
+        senderId: message.senderId.toString(),
         type: message.type,
         body: message.body,
         language: message.language,

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import CallSession from '../models/callSession.js';
+import getCallSessionModel from '../models/callSession.js';
 import { createCallSummaryMessage } from '../lib/callSummaryUtils.js';
 
 // Ported verbatim from the monolith (backend/src/sockets/callHandlers.js).
@@ -12,7 +12,7 @@ const authorizeCallAccess = async (socket, callId, { allowTerminated = false } =
     return null;
   }
 
-  const call = await CallSession.findById(callId);
+  const call = await getCallSessionModel().findById(callId);
   if (!call) {
     socket.emit('call_error', { event: 'call_access', message: 'Call not found.' });
     return null;

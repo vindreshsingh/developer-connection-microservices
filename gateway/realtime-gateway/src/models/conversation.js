@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
+import { getChatConn } from '../lib/db.js';
 
-// Ported verbatim from the monolith (backend/src/models/conversation.js).
-// Owned by chat-service; the socket layer reads/writes lastReadBy + lastMessageAt.
 const conversationSchema = new mongoose.Schema(
   {
     participants: {
@@ -26,4 +25,7 @@ conversationSchema.pre('validate', function () {
   }
 });
 
-export default mongoose.model('Conversation', conversationSchema);
+export default function getConversationModel() {
+  const conn = getChatConn();
+  return conn.models.Conversation || conn.model('Conversation', conversationSchema);
+}

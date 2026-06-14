@@ -1,8 +1,8 @@
-import Group from '../models/group.js';
+import getGroupModel from '../models/group.js';
 
 // Ported verbatim from the monolith (backend/src/utils/groupAuthorization.js).
 export const canUserAccessGroup = async (userId, groupId) => {
-  const group = await Group.findOne({ _id: groupId, deletedAt: null });
+  const group = await getGroupModel().findOne({ _id: groupId, deletedAt: null });
   if (!group) return { allowed: false, reason: 'Group not found or has been deleted.' };
 
   const member = group.members.find((m) => m.userId.equals(userId));
