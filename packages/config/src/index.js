@@ -5,6 +5,8 @@ export const config = {
   redisUrl: process.env.REDIS_URL,
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   internalAuthHeader: process.env.INTERNAL_AUTH_HEADER ?? 'x-internal-user',
+  internalTokenVersionHeader:
+    process.env.INTERNAL_TOKEN_VERSION_HEADER ?? 'x-internal-token-version',
 };
 
 export default config;

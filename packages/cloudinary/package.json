@@ -1,0 +1,14 @@
+{
+  "name": "@dc/cloudinary",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo \"no build\"",
+    "test": "echo \"no tests\"",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "cloudinary": "^2.10.0"
+  }
+}

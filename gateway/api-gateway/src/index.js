@@ -28,12 +28,19 @@ app.use(cookieParser());
 // is a zero-behavior-change, reversible step.
 app.use((req, _res, next) => {
   delete req.headers[config.internalAuthHeader];
+  delete req.headers[config.internalTokenVersionHeader];
   try {
     const token = req.cookies?.token;
     if (token) {
       const decoded = verifyToken(token);
       const userId = decoded.id ?? decoded._id ?? decoded.sub;
-      if (userId) req.headers[config.internalAuthHeader] = String(userId);
+      if (userId) {
+        req.headers[config.internalAuthHeader] = String(userId);
+        // Forward tokenVersion so user-doc-loading services can enforce
+        // revocation (password reset / logout-everywhere) with parity.
+        if (decoded.tokenVersion !== undefined)
+          req.headers[config.internalTokenVersionHeader] = String(decoded.tokenVersion);
+      }
     }
   } catch {
     // Anonymous/invalid token — downstream (or the monolith) decides whether
@@ -52,7 +59,9 @@ app.get('/_gateway/health', (_req, res) =>
 // service URL here. Anything not listed falls through to the monolith below.
 const ROUTES = [
   { prefix: '/notifications', target: process.env.NOTIFICATION_URL }, // M2
-  // { prefix: '/ai',            target: process.env.AI_URL },
+  { prefix: '/ai', target: process.env.AI_URL }, // M3
+  { prefix: '/jobs', target: process.env.JOB_URL }, // M3
+  { prefix: '/posts', target: process.env.POST_URL }, // M3
 ];
 
 const onProxyError = (err, _req, res) => {
