@@ -1,6 +1,6 @@
 # Build from the MONOREPO ROOT:  docker build -f services/notification-service/Dockerfile -t notification-service .
 FROM node:20-alpine AS base
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
@@ -10,4 +10,4 @@ RUN pnpm install --frozen-lockfile=false
 
 WORKDIR /app/services/notification-service
 EXPOSE 4010
-CMD ["pnpm", "start"]
+CMD ["node", "src/index.js"]
