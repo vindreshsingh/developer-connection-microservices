@@ -62,6 +62,8 @@ const ROUTES = [
   { prefix: '/ai', target: process.env.AI_URL }, // M3
   { prefix: '/jobs', target: process.env.JOB_URL }, // M3
   { prefix: '/posts', target: process.env.POST_URL }, // M3
+  { prefix: '/billing', target: process.env.BILLING_URL }, // M4
+  { prefix: '/request', target: process.env.CONNECTION_URL }, // M4
 ];
 
 const onProxyError = (err, _req, res) => {
