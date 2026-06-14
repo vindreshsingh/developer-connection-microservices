@@ -1,45 +1,25 @@
 # profile-service
 
-**Status:** M6 — extracted (shared-DB phase). Owns the user's profile.
+**Status:** M6 complete — own database (`profile` / `profiles` collection).
 
-Mounted at `/profile`. All routes require auth (gateway edge auth + forwarded
-`x-internal-user` / `x-internal-token-version`).
+Profile `_id` equals identity account `_id`. Created by identity-service on
+signup/OAuth bootstrap. OAuth credentials stay in identity-service; this service
+calls identity internal APIs for enrichment sync/disconnect and password changes.
 
-## Routes
+## Routes (via gateway `/profile`, auth required)
 
-- `GET /profile` (own), `PATCH /profile` (edit), `DELETE /profile` (soft-delete)
-- `GET /profile/feed` — paginated discovery feed (skills / experience filters)
-- `POST /profile/photo`, `POST /profile/cover` — multipart image uploads
-- `GET /profile/linked-accounts`
-- `POST /profile/github/sync`, `DELETE /profile/github/disconnect`
-- `POST /profile/linkedin/sync`, `DELETE /profile/linkedin/disconnect`
-- `GET /profile/:userId` — public profile (registered last)
+Profile CRUD, feed, photo/cover uploads, GitHub/LinkedIn enrichment.
 
-## Owns (profile fields on the shared `users` doc)
+Feed exclusions come from connection-service (`GET /internal/feed-exclusions/:userId`).
 
-`firstName`, `lastName`, `photoUrl`, `coverImageUrl`, `bio`, `skills`,
-`techStack`, `experience`, `age`, `gender`, `github.*`, `linkedin.*`.
+## Env
 
-## Couplings (shared-DB phase — flagged for the M6 DB split)
+See `.env.example`. Required: `MONGO_URI`, `IDENTITY_URL`, `CONNECTION_URL`,
+`INTERNAL_SERVICE_TOKEN`, `JWT_SECRET`.
 
-- Reads `oauthProviders` (owned by identity-service) to decrypt access tokens
-  for enrichment, and `password` existence to guard "disconnect only login".
-- Reads `connectionrequests` (owned by connection-service) + others'
-  `blockedUsers` to build the feed exclusion set.
-- `ENCRYPTION_KEY` / `JWT_SECRET` must match identity-service + the monolith.
-
-## Run locally
+## Run
 
 ```bash
-pnpm install
-cp .env.example .env   # set MONGO_URI, JWT_SECRET, ENCRYPTION_KEY, CLOUDINARY_*
+cp .env.example .env
 pnpm --filter profile-service dev
 ```
-
-## Migration checklist
-
-- [x] Profile CRUD + feed + uploads + enrichment ported
-- [ ] Remove monolith `/profile` routes at cutover
-- [ ] Split profile fields into a dedicated profile DB (consume `user.created`)
-- [ ] Replace cross-context reads (oauthProviders, connectionrequests) with
-      service calls / events

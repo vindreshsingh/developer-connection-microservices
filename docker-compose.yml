@@ -1,28 +1,30 @@
 # Local dev stack: infra + all microservices + the gateway.
 #
-# Shared-DB phase: every service uses the same Mongo database as the monolith
-# (`developer-connection`). Gateway routes extracted prefixes to services; the
-# rest falls through to MONOLITH_URL.
-x-shared-env: &shared-env
-  MONGO_URI: mongodb://mongo:27017/developer-connection
+# Database-per-service — fresh DBs, no monolith data migration required.
+# Gateway routes extracted prefixes to services; the rest falls through to MONOLITH_URL.
+x-base-env: &base-env
   JWT_SECRET: change-me
   REDIS_URL: redis://redis:6379
   FRONTEND_URL: http://localhost:5173
   NODE_ENV: development
+  INTERNAL_SERVICE_TOKEN: dev-internal-token
 
-# Dev-only AES key for OAuth token encryption (64 hex chars). Do NOT use in prod.
 x-identity-env: &identity-env
-  <<: *shared-env
+  <<: *base-env
+  MONGO_URI: mongodb://mongo:27017/identity
+  PROFILE_URL: http://profile-service:4005
   ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   OAUTH_CALLBACK_BASE_URL: http://localhost:4000
   SKIP_EMAIL_VERIFICATION: "true"
 
 x-profile-env: &profile-env
-  <<: *shared-env
-  ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  <<: *base-env
+  MONGO_URI: mongodb://mongo:27017/profile
+  IDENTITY_URL: http://identity-service:4001
+  CONNECTION_URL: http://connection-service:4003
 
 x-gateway-env: &gateway-env
-  <<: *shared-env
+  <<: *base-env
   PORT: "4000"
   MONOLITH_URL: http://host.docker.internal:3008
   IDENTITY_URL: http://identity-service:4001
@@ -74,6 +76,7 @@ services:
     depends_on:
       - mongo
       - redis
+      - profile-service
 
   identity-worker:
     build: ./services/identity-service
@@ -93,11 +96,14 @@ services:
     depends_on:
       - mongo
       - redis
+      - identity-service
+      - connection-service
 
   connection-service:
     build: ./services/connection-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/connection
       PORT: "4003"
     ports:
       - "4003:4003"
@@ -108,7 +114,8 @@ services:
   chat-service:
     build: ./services/chat-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/chat
       PORT: "4002"
     ports:
       - "4002:4002"
@@ -119,7 +126,8 @@ services:
   group-service:
     build: ./services/group-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/group
       PORT: "4004"
     ports:
       - "4004:4004"
@@ -130,7 +138,8 @@ services:
   call-service:
     build: ./services/call-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/call
       PORT: "4006"
     ports:
       - "4006:4006"
@@ -141,7 +150,8 @@ services:
   billing-service:
     build: ./services/billing-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/billing
       PORT: "4007"
     ports:
       - "4007:4007"
@@ -152,7 +162,8 @@ services:
   ai-service:
     build: ./services/ai-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/ai
       PORT: "4008"
     ports:
       - "4008:4008"
@@ -163,7 +174,8 @@ services:
   post-service:
     build: ./services/post-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/post
       PORT: "4009"
     ports:
       - "4009:4009"
@@ -174,7 +186,8 @@ services:
   notification-service:
     build: ./services/notification-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/notification
       PORT: "4010"
     ports:
       - "4010:4010"
@@ -185,7 +198,8 @@ services:
   job-service:
     build: ./services/job-service
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/job
       PORT: "4011"
     ports:
       - "4011:4011"
@@ -196,7 +210,8 @@ services:
   realtime-gateway:
     build: ./gateway/realtime-gateway
     environment:
-      <<: *shared-env
+      <<: *base-env
+      MONGO_URI: mongodb://mongo:27017/realtime
       PORT: "4020"
     ports:
       - "4020:4020"

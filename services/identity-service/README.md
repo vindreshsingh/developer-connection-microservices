@@ -1,44 +1,30 @@
 # identity-service
 
-**Status:** M6 — extracted (shared-DB phase). The account/credentials authority.
+**Status:** M6 complete — own database (`identity` / `accounts` collection).
 
-Mounted at `/auth`. Owns authentication and is the **only** service that mints
-the JWT. Public endpoints (no edge auth) — they set/clear the `token` cookie.
+Account authority: credentials, OAuth, JWT issuance. Profile fields live in
+profile-service (`profile` DB). On signup/OAuth, identity bootstraps the profile
+via `POST profile-service/internal/profiles`.
 
-## Routes
+## Routes (public, via gateway `/auth`)
 
-- `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`
-- `POST /auth/forgot-password`, `POST /auth/reset-password/:token`
-- `GET  /auth/verify-email/:token`, `POST /auth/resend-verification`
-- `GET  /auth/oauth/:provider`, `GET /auth/oauth/:provider/callback` (github / google / linkedin)
+- `POST /auth/signup`, `/login`, `/logout`, password reset, email verify
+- `GET /auth/oauth/:provider[/callback]`
 
-## Owns (identity fields on the shared `users` doc)
+## Internal routes (`/auth/internal/*`, service token only)
 
-`email`, `password`, `isEmailVerified`, `emailVerify*`, `passwordReset*`,
-`tokenVersion`, `oauthProviders`. Issues the JWT (`getJWT`) and bumps
-`tokenVersion` on password reset (logout-everywhere).
+Session validation, OAuth token decrypt, linked-accounts, disconnect, password
+update, account deactivate — called by profile-service.
 
-## Notes / couplings (shared-DB phase)
+## Env
 
-- Signup currently writes the **whole** `users` document (profile fields too) —
-  the identity/profile field split is the later M6 DB-split step.
-- Transactional email uses the shared `email` BullMQ queue when `REDIS_URL` is
-  set — drained by `identity-worker` (`pnpm worker` / `pnpm worker:dev`); otherwise
-  sends inline during the request.
-- `ENCRYPTION_KEY` + `JWT_SECRET` must match the monolith for token parity.
-- `OAUTH_CALLBACK_BASE_URL` must be the public gateway origin.
+See `.env.example`. Required: `MONGO_URI`, `JWT_SECRET`, `PROFILE_URL`,
+`INTERNAL_SERVICE_TOKEN`, `ENCRYPTION_KEY` (for OAuth).
 
-## Run locally
+## Run
 
 ```bash
-pnpm install
-cp .env.example .env   # set MONGO_URI, JWT_SECRET, ENCRYPTION_KEY (+ OAuth/SMTP as needed)
+cp .env.example .env
 pnpm --filter identity-service dev
+# With Redis: pnpm --filter identity-service worker:dev
 ```
-
-## Migration checklist
-
-- [x] Auth + OAuth + email flows ported; JWT issuance owned here
-- [ ] Remove monolith `/auth` routes at cutover
-- [ ] Split identity fields into a dedicated identity DB (dual-write + backfill)
-- [ ] Publish `user.created` / `user.deleted` events for profile-service

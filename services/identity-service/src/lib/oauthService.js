@@ -1,52 +1,54 @@
-import User from '../models/user.js';
+import Account from '../models/account.js';
 import { encryptToken } from './encryption.js';
+import { bootstrapProfile, pickProfileFields } from './profileClient.js';
 
-// Ported verbatim from the monolith (backend/src/services/oauthService.js).
 export async function upsertOAuthUser({ provider, providerId, email, firstName, lastName, photoUrl, rawToken }) {
   const encryptedToken = encryptToken(rawToken);
   const providerIdStr = String(providerId);
 
-  let user = await User.findOne({
+  let account = await Account.findOne({
     'oauthProviders.provider': provider,
     'oauthProviders.providerId': providerIdStr,
   });
 
-  if (user) {
-    const entry = user.oauthProviders.find(
+  if (account) {
+    const entry = account.oauthProviders.find(
       (p) => p.provider === provider && p.providerId === providerIdStr,
     );
     if (entry) entry.accessToken = encryptedToken;
-    await user.save();
-    return user;
+    await account.save();
+    return account;
   }
 
   if (email) {
-    user = await User.findOne({ email: email.toLowerCase() });
-    if (user) {
-      user.oauthProviders.push({
+    account = await Account.findOne({ email: email.toLowerCase() });
+    if (account) {
+      account.oauthProviders.push({
         provider,
         providerId: providerIdStr,
         accessToken: encryptedToken,
         linkedAt: new Date(),
       });
-      if (!user.isEmailVerified) user.isEmailVerified = true;
-      await user.save();
-      return user;
+      if (!account.isEmailVerified) account.isEmailVerified = true;
+      await account.save();
+      return account;
     }
   }
 
-  const newUser = new User({
-    firstName: firstName || 'User',
-    lastName: lastName || undefined,
+  account = new Account({
     email: email ? email.toLowerCase() : null,
-    photoUrl: photoUrl || null,
     isEmailVerified: Boolean(email),
     oauthProviders: [{ provider, providerId: providerIdStr, accessToken: encryptedToken, linkedAt: new Date() }],
   });
+  await account.save();
 
-  await newUser.save();
+  await bootstrapProfile(account._id, pickProfileFields({
+    firstName: firstName || 'User',
+    lastName,
+    photoUrl: photoUrl || null,
+  }));
 
-  if (!email) newUser._needsEmail = true;
+  if (!email) account._needsEmail = true;
 
-  return newUser;
+  return account;
 }

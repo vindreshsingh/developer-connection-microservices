@@ -1,24 +1,28 @@
 /**
- * Profile REST API — ported from the monolith (backend/src/routes/profile.js).
- * Mounted under /profile. Owns the user's profile fields, discovery feed,
- * image uploads, and GitHub/LinkedIn enrichment.
+ * Profile REST API — profile fields only (profile DB).
+ * OAuth credentials live in identity-service; blocking data in connection-service.
  */
 
 import mongoose from 'mongoose';
 import { Router } from 'express';
 import multer from 'multer';
-import User from '../models/user.js';
-import ConnectionRequest from '../models/connectionRequest.js';
+import Profile from '../models/profile.js';
 import userAuth from '../middlewares/auth.js';
 import { uploadImageBuffer } from '@dc/cloudinary';
 import { GitHubEnrichmentService } from '../lib/githubEnrichment.js';
 import { LinkedInEnrichmentService } from '../lib/linkedinEnrichment.js';
-import { decryptToken } from '../lib/encryption.js';
-import { hashPassword } from '../lib/sanitization.js';
+import {
+  deactivateAccount,
+  disconnectOAuth,
+  getLinkedAccounts,
+  getOAuthToken,
+  updatePassword,
+} from '../lib/identityClient.js';
+import { getFeedExclusions } from '../lib/connectionClient.js';
 
 const router = Router();
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,13 +46,13 @@ const handleImageUpload = (field, folder) => [
       if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
       const result = await uploadImageBuffer(req.file.buffer, folder);
-      const user = await User.findByIdAndUpdate(
+      const profile = await Profile.findByIdAndUpdate(
         req.user._id,
         { [field]: result.secure_url },
         { new: true, runValidators: true },
       );
 
-      res.status(200).json({ message: 'Image uploaded successfully', user });
+      res.status(200).json({ message: 'Image uploaded successfully', user: profile });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
@@ -86,24 +90,24 @@ router.patch('/', userAuth, async (req, res) => {
     if (updates.password !== undefined) {
       if (!updates.password || updates.password.length < 8)
         return res.status(400).json({ error: 'Password must be at least 8 characters' });
-      updates.password = await hashPassword(updates.password);
-      // Invalidate existing sessions when the password changes (parity with reset-password).
-      updates.tokenVersion = (req.user.tokenVersion ?? 0) + 1;
+      await updatePassword(req.user._id, updates.password);
+      delete updates.password;
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, {
+    const profile = await Profile.findByIdAndUpdate(req.user._id, updates, {
       new: true,
       runValidators: true,
-    }).select('-password');
-    res.status(200).json({ message: 'Profile updated successfully', user });
+    });
+    res.status(200).json({ message: 'Profile updated successfully', user: profile });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
 router.delete('/', userAuth, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user._id, { isActive: false, deletedAt: new Date() });
+    await Profile.findByIdAndUpdate(req.user._id, { isActive: false, deletedAt: new Date() });
+    await deactivateAccount(req.user._id);
     res.clearCookie('token');
     res.status(200).json({ message: 'Account deleted successfully' });
   } catch (err) {
@@ -120,28 +124,13 @@ const PUBLIC_PROFILE_FIELDS =
   'github.username github.profileUrl github.topRepos github.topLanguages ' +
   'linkedin.headline linkedin.company linkedin.jobTitle linkedin.profileUrl';
 
-// FEED must be registered before VIEW_BY_ID ('/:userId') — otherwise Express
-// matches "/profile/feed" as VIEW_BY_ID with userId="feed".
 router.get('/feed', userAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const loggedInUserId = req.user._id;
 
-    const interactions = await ConnectionRequest.find({
-      $or: [{ fromUserId: loggedInUserId }, { toUserId: loggedInUserId }],
-    }).select('fromUserId toUserId');
-
-    const excludedIds = new Set([loggedInUserId.toString()]);
-    for (const r of interactions) {
-      excludedIds.add(r.fromUserId.toString());
-      excludedIds.add(r.toUserId.toString());
-    }
-
-    for (const id of req.user.blockedUsers) excludedIds.add(id.toString());
-    const blockedByOthers = await User.find({ blockedUsers: loggedInUserId }).select('_id');
-    for (const u of blockedByOthers) excludedIds.add(u._id.toString());
-
-    const filter = { _id: { $nin: [...excludedIds] } };
+    const excludedIds = await getFeedExclusions(loggedInUserId);
+    const filter = { _id: { $nin: excludedIds } };
 
     const { skills } = req.query;
     if (skills) {
@@ -156,11 +145,7 @@ router.get('/feed', userAuth, async (req, res) => {
 
     const { experienceLevel } = req.query;
     if (experienceLevel && req.user.isPremium) {
-      const ranges = {
-        junior: { $lt: 2 },
-        mid: { $gte: 2, $lt: 5 },
-        senior: { $gte: 5 },
-      };
+      const ranges = { junior: { $lt: 2 }, mid: { $gte: 2, $lt: 5 }, senior: { $gte: 5 } };
       const range = ranges[experienceLevel];
       if (range) {
         filter.$expr = {
@@ -190,8 +175,8 @@ router.get('/feed', userAuth, async (req, res) => {
       }
     }
 
-    const total = await User.countDocuments(filter);
-    const users = await User.find(filter)
+    const total = await Profile.countDocuments(filter);
+    const users = await Profile.find(filter)
       .select(PUBLIC_PROFILE_FIELDS)
       .skip((page - 1) * FEED_PAGE_SIZE)
       .limit(FEED_PAGE_SIZE);
@@ -211,31 +196,25 @@ router.get('/feed', userAuth, async (req, res) => {
   }
 });
 
-// ── Linked accounts + enrichment — all before /:userId ────────────────────────
-
-router.get('/linked-accounts', userAuth, (req, res) => {
-  const linked = (req.user.oauthProviders || []).map((p) => ({
-    provider: p.provider,
-    linkedAt: p.linkedAt,
-  }));
-  res.status(200).json({ linkedAccounts: linked });
+router.get('/linked-accounts', userAuth, async (req, res) => {
+  try {
+    const data = await getLinkedAccounts(req.user._id);
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/github/sync', userAuth, async (req, res) => {
   try {
-    const user = req.user;
-    const provider = user.oauthProviders?.find((p) => p.provider === 'github');
+    const tokenData = await getOAuthToken(req.user._id, 'github');
+    if (!tokenData) return res.status(400).json({ error: 'GitHub account is not linked to your profile.' });
 
-    if (!provider) return res.status(400).json({ error: 'GitHub account is not linked to your profile.' });
-
-    const plainToken = decryptToken(provider.accessToken);
-    const svc = new GitHubEnrichmentService(plainToken);
+    const svc = new GitHubEnrichmentService(tokenData.accessToken);
     const data = await svc.sync();
 
-    user.github = data;
-    await user.save();
-
-    res.status(200).json({ message: 'GitHub profile synced.', github: user.github });
+    const profile = await Profile.findByIdAndUpdate(req.user._id, { github: data }, { new: true });
+    res.status(200).json({ message: 'GitHub profile synced.', github: profile.github });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -243,42 +222,24 @@ router.post('/github/sync', userAuth, async (req, res) => {
 
 router.delete('/github/disconnect', userAuth, async (req, res) => {
   try {
-    const user = req.user;
-
-    if (!user.oauthProviders?.some((p) => p.provider === 'github'))
-      return res.status(400).json({ error: 'GitHub account is not linked to your profile.' });
-
-    const otherProviders = user.oauthProviders.filter((p) => p.provider !== 'github');
-    const hasPassword = await User.exists({ _id: user._id, password: { $ne: null } });
-    if (!hasPassword && otherProviders.length === 0) {
-      return res.status(400).json({ error: 'Cannot disconnect your only login method. Set a password first.' });
-    }
-
-    user.oauthProviders = otherProviders;
-    user.github = undefined;
-    await user.save();
-
-    res.status(200).json({ message: 'GitHub account disconnected.' });
+    await disconnectOAuth(req.user._id, 'github');
+    const profile = await Profile.findByIdAndUpdate(req.user._id, { $unset: { github: 1 } }, { new: true });
+    res.status(200).json({ message: 'GitHub account disconnected.', user: profile });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
 router.post('/linkedin/sync', userAuth, async (req, res) => {
   try {
-    const user = req.user;
-    const provider = user.oauthProviders?.find((p) => p.provider === 'linkedin');
+    const tokenData = await getOAuthToken(req.user._id, 'linkedin');
+    if (!tokenData) return res.status(400).json({ error: 'LinkedIn account is not linked to your profile.' });
 
-    if (!provider) return res.status(400).json({ error: 'LinkedIn account is not linked to your profile.' });
-
-    const plainToken = decryptToken(provider.accessToken);
-    const svc = new LinkedInEnrichmentService(plainToken);
+    const svc = new LinkedInEnrichmentService(tokenData.accessToken);
     const data = await svc.sync();
 
-    user.linkedin = data;
-    await user.save();
-
-    res.status(200).json({ message: 'LinkedIn profile synced.', linkedin: user.linkedin });
+    const profile = await Profile.findByIdAndUpdate(req.user._id, { linkedin: data }, { new: true });
+    res.status(200).json({ message: 'LinkedIn profile synced.', linkedin: profile.linkedin });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -286,38 +247,24 @@ router.post('/linkedin/sync', userAuth, async (req, res) => {
 
 router.delete('/linkedin/disconnect', userAuth, async (req, res) => {
   try {
-    const user = req.user;
-
-    if (!user.oauthProviders?.some((p) => p.provider === 'linkedin'))
-      return res.status(400).json({ error: 'LinkedIn account is not linked to your profile.' });
-
-    const otherProviders = user.oauthProviders.filter((p) => p.provider !== 'linkedin');
-    const hasPassword = await User.exists({ _id: user._id, password: { $ne: null } });
-    if (!hasPassword && otherProviders.length === 0) {
-      return res.status(400).json({ error: 'Cannot disconnect your only login method. Set a password first.' });
-    }
-
-    user.oauthProviders = otherProviders;
-    user.linkedin = undefined;
-    await user.save();
-
-    res.status(200).json({ message: 'LinkedIn account disconnected.' });
+    await disconnectOAuth(req.user._id, 'linkedin');
+    const profile = await Profile.findByIdAndUpdate(req.user._id, { $unset: { linkedin: 1 } }, { new: true });
+    res.status(200).json({ message: 'LinkedIn account disconnected.', user: profile });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
-// ── Public profile by ID — MUST be last ───────────────────────────────────────
 router.get('/:userId', userAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(userId))
       return res.status(400).json({ error: 'Invalid user id' });
 
-    const user = await User.findById(userId).select(PUBLIC_PROFILE_FIELDS);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const profile = await Profile.findById(userId).select(PUBLIC_PROFILE_FIELDS);
+    if (!profile) return res.status(404).json({ error: 'User not found' });
 
-    res.status(200).json(user);
+    res.status(200).json(profile);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
