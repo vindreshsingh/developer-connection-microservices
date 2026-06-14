@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { requireUser } from '@dc/auth';
+import authRoutes from './auth.js';
+import oauthRoutes from './oauth.js';
 
 const router = Router();
 
-// TODO: port handlers from the monolith (/auth).
-// Owned models: user (auth fields).
-router.get('/', requireUser, (_req, res) => {
-  res.json({ service: 'identity-service', status: 'stub' });
-});
+// OAuth routes first (both mounted under /auth); paths don't collide
+// (/oauth/:provider vs /signup, /login, ...).
+router.use('/', oauthRoutes);
+router.use('/', authRoutes);
 
 export default router;
