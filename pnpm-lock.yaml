@@ -308,6 +308,9 @@ importers:
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
+      mongoose:
+        specifier: ^9.6.3
+        version: 9.7.0
 
   services/post-service:
     dependencies:
