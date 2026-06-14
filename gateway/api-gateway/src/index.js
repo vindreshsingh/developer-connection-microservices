@@ -1,3 +1,4 @@
+import http from 'node:http';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -10,6 +11,9 @@ const log = createLogger('api-gateway');
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 const MONOLITH_URL = process.env.MONOLITH_URL ?? 'http://localhost:3008';
+
+const matchPrefix = (pathname, prefix) =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(cookieParser());
@@ -85,24 +89,21 @@ const onProxyError = (err, _req, res) => {
   }
 };
 
+let socketIoProxy;
+
 for (const { prefix, target } of ROUTES) {
   if (!target) continue;
-  // Mount at root with a pathFilter (not app.use(prefix, ...)) so the FULL
-  // original path — including the prefix — is forwarded to the service. Using
-  // an Express mount path would strip the prefix before proxying.
-  app.use(
-    createProxyMiddleware({
-      target,
-      changeOrigin: true,
-      ws: true,
-      // Predicate (not a glob) so matching is deterministic: the whole prefix
-      // and any sub-path go to the service; the leading-segment check avoids
-      // matching look-alikes like `/notifications-archive`.
-      pathFilter: (pathname) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-      on: { error: onProxyError },
-    }),
-  );
-  log.info(`Routing ${prefix} -> ${target}`);
+  const isSocketIo = prefix === '/socket.io';
+  const proxy = createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    ws: isSocketIo,
+    pathFilter: (pathname) => matchPrefix(pathname, prefix),
+    on: { error: onProxyError },
+  });
+  app.use(proxy);
+  if (isSocketIo) socketIoProxy = proxy;
+  log.info(`Routing ${prefix} -> ${target}${isSocketIo ? ' (ws)' : ''}`);
 }
 
 // Default: proxy everything else to the monolith.
@@ -122,4 +123,17 @@ app.use(
   }),
 );
 
-app.listen(PORT, () => log.info(`api-gateway listening on :${PORT} -> monolith ${MONOLITH_URL}`));
+// http-proxy-middleware requires an explicit `upgrade` handler on the HTTP
+// server — `app.listen()` alone leaves WebSocket handshakes hanging (pending).
+const server = http.createServer(app);
+
+server.on('upgrade', (req, socket, head) => {
+  const pathname = req.url?.split('?')[0] ?? '';
+  if (socketIoProxy && matchPrefix(pathname, '/socket.io')) {
+    socketIoProxy.upgrade(req, socket, head);
+    return;
+  }
+  socket.destroy();
+});
+
+server.listen(PORT, () => log.info(`api-gateway listening on :${PORT} -> monolith ${MONOLITH_URL}`));
