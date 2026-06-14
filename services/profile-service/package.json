@@ -1,0 +1,23 @@
+{
+  "name": "profile-service",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "build": "echo \"no build\"",
+    "test": "node --test",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ioredis": "^5.11.1",
+    "@dc/auth": "workspace:*",
+    "@dc/config": "workspace:*",
+    "@dc/logger": "workspace:*",
+    "@dc/errors": "workspace:*",
+    "@dc/events": "workspace:*",
+    "@dc/mongo": "workspace:*"
+  }
+}

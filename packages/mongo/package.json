@@ -1,0 +1,14 @@
+{
+  "name": "@dc/mongo",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo \"no build\"",
+    "test": "echo \"no tests\"",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "mongoose": "^9.6.3"
+  }
+}

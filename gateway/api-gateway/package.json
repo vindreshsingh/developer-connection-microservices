@@ -1,0 +1,22 @@
+{
+  "name": "api-gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "build": "echo \"no build\"",
+    "test": "echo \"no tests\"",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "@dc/auth": "workspace:*",
+    "@dc/config": "workspace:*",
+    "@dc/logger": "workspace:*"
+  }
+}
