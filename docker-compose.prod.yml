@@ -27,6 +27,7 @@ x-base-env: &base-env
   IDENTITY_URL: http://identity-service:4001
   PROFILE_URL: http://profile-service:4005
   CONNECTION_URL: http://connection-service:4003
+  PREMIUM_ALLOWLIST: ${PREMIUM_ALLOWLIST:-}
 
 x-identity-env: &identity-env
   <<: *base-env

@@ -21,6 +21,13 @@ export const config = {
   identityUrl: process.env.IDENTITY_URL ?? 'http://localhost:4001',
   profileUrl: process.env.PROFILE_URL ?? 'http://localhost:4005',
   connectionUrl: process.env.CONNECTION_URL ?? 'http://localhost:4003',
+  // Comma-separated userIds and/or emails granted Premium without paying
+  // (test/comp accounts). Matched case-insensitively. userId match works
+  // everywhere; email matches only where req.user.email is present.
+  premiumAllowlist: (process.env.PREMIUM_ALLOWLIST ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 export default config;
