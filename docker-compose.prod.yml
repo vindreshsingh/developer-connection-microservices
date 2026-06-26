@@ -74,6 +74,7 @@ x-gateway-env: &gateway-env
 services:
   # ---- Public edge: API gateway ----
   api-gateway:
+    image: ghcr.io/vindreshsingh/dc-api-gateway:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: gateway/api-gateway/Dockerfile
@@ -89,6 +90,7 @@ services:
 
   # ---- Public edge: realtime (Socket.IO) gateway ----
   realtime-gateway:
+    image: ghcr.io/vindreshsingh/dc-realtime-gateway:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: gateway/realtime-gateway/Dockerfile
@@ -105,6 +107,7 @@ services:
 
   # ---- Internal services (no host ports; private Docker network only) ----
   identity-service:
+    image: ghcr.io/vindreshsingh/dc-identity-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/identity-service/Dockerfile
@@ -114,6 +117,7 @@ services:
     restart: unless-stopped
 
   identity-worker:
+    image: ghcr.io/vindreshsingh/dc-identity-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/identity-service/Dockerfile
@@ -124,6 +128,7 @@ services:
     restart: unless-stopped
 
   profile-service:
+    image: ghcr.io/vindreshsingh/dc-profile-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/profile-service/Dockerfile
@@ -135,6 +140,7 @@ services:
     restart: unless-stopped
 
   connection-service:
+    image: ghcr.io/vindreshsingh/dc-connection-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/connection-service/Dockerfile
@@ -145,6 +151,7 @@ services:
     restart: unless-stopped
 
   chat-service:
+    image: ghcr.io/vindreshsingh/dc-chat-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/chat-service/Dockerfile
@@ -155,6 +162,7 @@ services:
     restart: unless-stopped
 
   group-service:
+    image: ghcr.io/vindreshsingh/dc-group-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/group-service/Dockerfile
@@ -165,6 +173,7 @@ services:
     restart: unless-stopped
 
   call-service:
+    image: ghcr.io/vindreshsingh/dc-call-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/call-service/Dockerfile
@@ -177,6 +186,7 @@ services:
     restart: unless-stopped
 
   billing-service:
+    image: ghcr.io/vindreshsingh/dc-billing-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/billing-service/Dockerfile
@@ -190,6 +200,7 @@ services:
     restart: unless-stopped
 
   ai-service:
+    image: ghcr.io/vindreshsingh/dc-ai-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/ai-service/Dockerfile
@@ -206,6 +217,7 @@ services:
     restart: unless-stopped
 
   post-service:
+    image: ghcr.io/vindreshsingh/dc-post-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/post-service/Dockerfile
@@ -219,6 +231,7 @@ services:
     restart: unless-stopped
 
   notification-service:
+    image: ghcr.io/vindreshsingh/dc-notification-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/notification-service/Dockerfile
@@ -229,6 +242,7 @@ services:
     restart: unless-stopped
 
   job-service:
+    image: ghcr.io/vindreshsingh/dc-job-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/job-service/Dockerfile

@@ -1,0 +1,62 @@
+name: Build & Push Images
+
+# Builds every service image in parallel and pushes to GHCR so the EC2 host
+# only needs `docker compose pull && up -d` (no pnpm install / build on the
+# server). Runs after CI passes on main; can also be triggered manually.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    # Only run when the triggering CI succeeded (workflow_dispatch has no run to gate on)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api-gateway,          dockerfile: gateway/api-gateway/Dockerfile }
+          - { name: realtime-gateway,     dockerfile: gateway/realtime-gateway/Dockerfile }
+          - { name: identity-service,     dockerfile: services/identity-service/Dockerfile }
+          - { name: profile-service,      dockerfile: services/profile-service/Dockerfile }
+          - { name: connection-service,   dockerfile: services/connection-service/Dockerfile }
+          - { name: chat-service,         dockerfile: services/chat-service/Dockerfile }
+          - { name: group-service,        dockerfile: services/group-service/Dockerfile }
+          - { name: call-service,         dockerfile: services/call-service/Dockerfile }
+          - { name: billing-service,      dockerfile: services/billing-service/Dockerfile }
+          - { name: ai-service,           dockerfile: services/ai-service/Dockerfile }
+          - { name: post-service,         dockerfile: services/post-service/Dockerfile }
+          - { name: notification-service, dockerfile: services/notification-service/Dockerfile }
+          - { name: job-service,          dockerfile: services/job-service/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/dc-${{ matrix.name }}:latest
+            ghcr.io/${{ github.repository_owner }}/dc-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
