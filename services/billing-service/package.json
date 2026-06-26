@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "seed": "node src/scripts/seedPlans.js",
     "build": "echo \"no build\"",
     "test": "node --test",
     "lint": "echo \"no lint\""
