@@ -80,7 +80,7 @@ services:
     # For nginx reverse-proxy on the same host, change to "127.0.0.1:4000:4000"
     # so the gateway is not directly reachable from the internet.
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     depends_on:
       - identity-service
       - profile-service
@@ -99,7 +99,7 @@ services:
       PORT: "4020"
     # For nginx reverse-proxy, change to "127.0.0.1:4020:4020".
     ports:
-      - "4020:4020"
+      - "127.0.0.1:4020:4020"
     restart: unless-stopped
 
   # ---- Internal services (no host ports; private Docker network only) ----
@@ -212,6 +212,9 @@ services:
       <<: *base-env
       MONGO_URI: ${MONGO_BASE}/post
       PORT: "4009"
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     restart: unless-stopped
 
   notification-service:
