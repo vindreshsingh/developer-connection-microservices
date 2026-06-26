@@ -10,6 +10,7 @@ import multer from 'multer';
 import userAuth from '../middlewares/auth.js';
 import { uploadImageBuffer } from '@dc/cloudinary';
 import { getExcludedUserIds } from '../lib/blocking.js';
+import '../models/user.js'; // registers the 'User' model so authorId populate resolves
 import Post from '../models/post.js';
 import PostComment from '../models/postComment.js';
 import Notification from '../models/notification.js';

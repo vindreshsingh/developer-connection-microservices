@@ -201,7 +201,7 @@ router.delete('/:groupId/members/:userId', userAuth, requireMember, requireAdmin
 
     if (!validObjectId(userId)) return res.status(400).json({ error: 'Invalid user ID.' });
 
-    if (req.user._id.equals(userId))
+    if (String(req.user._id) === String(userId))
       return res.status(400).json({ error: 'Use the leave endpoint to remove yourself.' });
 
     if (!group.getMember(userId))
