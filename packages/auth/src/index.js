@@ -5,6 +5,22 @@ import { validateSession, getProfile } from '@dc/service-clients';
 // Verify a JWT (used by the gateway at the edge).
 export const verifyToken = (token) => jwt.verify(token, config.jwtSecret);
 
+/**
+ * Config-driven Premium override for test/comp accounts. If the request's
+ * userId (always available) or req.user.email (when present) is in
+ * config.premiumAllowlist, force req.user.isPremium = true. Call right after
+ * req.user is populated, before next(). No-op when the allowlist is empty.
+ */
+export const applyPremiumAllowlist = (req) => {
+  const list = config.premiumAllowlist;
+  if (!list?.length || !req.user) return;
+  const id = req.userId != null ? String(req.userId).toLowerCase() : '';
+  const email = req.user.email ? String(req.user.email).toLowerCase() : '';
+  if ((id && list.includes(id)) || (email && list.includes(email))) {
+    req.user.isPremium = true;
+  }
+};
+
 // Downstream services trust the gateway's signed internal header instead of
 // re-validating the cookie. The gateway sets it after verifyToken() succeeds.
 export const requireUser = (req, _res, next) => {
@@ -44,6 +60,7 @@ export const createUserAuth = (UserModel) => async (req, res, next) => {
 
     req.user = user;
     req.userId = String(user._id);
+    applyPremiumAllowlist(req);
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
@@ -81,6 +98,7 @@ export const createRemoteUserAuth = () => async (req, res, next) => {
 
     req.user = { ...profile, _id: profile._id || userId };
     req.userId = String(userId);
+    applyPremiumAllowlist(req);
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
