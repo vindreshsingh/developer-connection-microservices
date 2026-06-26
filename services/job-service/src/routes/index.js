@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import userAuth from '../middlewares/auth.js';
 import { getExcludedUserIds } from '../lib/blocking.js';
 import * as cache from '@dc/cache';
+import '../models/user.js'; // registers the 'User' model so postedBy/applicantId populate resolves
 import JobPosting from '../models/jobPosting.js';
 import JobApplication from '../models/jobApplication.js';
 import Notification from '../models/notification.js';

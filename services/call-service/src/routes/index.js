@@ -45,7 +45,7 @@ router.post('/', userAuth, async (req, res) => {
       if (!validObjectId(targetUserId)) {
         return res.status(400).json({ error: 'Invalid targetUserId.' });
       }
-      if (callerId.equals(targetUserId)) {
+      if (String(callerId) === String(targetUserId)) {
         return res.status(400).json({ error: 'You cannot call yourself.' });
       }
 
